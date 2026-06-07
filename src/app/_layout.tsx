@@ -35,7 +35,11 @@ export default function RootLayout() {
                     <Stack.Screen name="group/[id]" />
                     <Stack.Screen
                       name="player"
-                      options={{ presentation: 'fullScreenModal', animation: 'fade' }}
+                      // A normal in-stack card (not a native fullScreenModal) so
+                      // the absolute-positioned LockOverlay can cover it when the
+                      // app is backgrounded mid-playback. gestureEnabled is off so
+                      // the native edge-swipe-back doesn't fight our own gestures.
+                      options={{ animation: 'fade', gestureEnabled: false }}
                     />
                   </Stack>
                   <LoginOverlay />
