@@ -1,6 +1,8 @@
 // Minimal fetch-based GraphQL client for Stash, ported from the tvOS
 // StashClient. POSTs to <server>/graphql with an optional ApiKey header.
 
+import { getSessionCookie } from './session';
+
 export interface GraphQLError {
   message: string;
   path?: string[];
@@ -60,6 +62,10 @@ export class StashClient {
     if (this.config.apiKey) {
       headers.ApiKey = this.config.apiKey;
     }
+    const cookie = getSessionCookie();
+    if (cookie) {
+      headers.Cookie = cookie;
+    }
 
     const proxy = this.config.connectionMode === 'proxy';
 
@@ -77,11 +83,9 @@ export class StashClient {
       );
     }
 
-    // In proxy mode an unauthenticated request is rejected by the SSO layer in one
-    // of two ways: a 401/403 (Authelia answers API/JSON requests this way rather
-    // than redirecting), or a 302 to the login page that fetch follows to a
-    // different origin (and/or an HTML body, handled below). Any of these means
-    // "log in", not a hard error.
+    // In proxy mode an unauthenticated request is rejected by the SSO layer: a
+    // 401/403 (Authelia answers API/JSON requests this way), or a 302 to the login
+    // page that fetch follows to a different origin (HTML body handled below).
     if (
       proxy &&
       (response.status === 401 ||
