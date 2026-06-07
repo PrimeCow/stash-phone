@@ -15,6 +15,31 @@ function originOf(url: string): string | null {
   }
 }
 
+// Reverse-proxy login pages (e.g. Authelia) often don't set autocapitalize on
+// their username field, so iOS capitalizes the first letter and you can't enter a
+// lowercase username. Force the right input attributes on every text field, and
+// keep doing so for inputs the page renders later (Authelia is a SPA).
+const FIX_INPUTS_JS = `
+(function() {
+  function fix() {
+    document.querySelectorAll('input').forEach(function(el) {
+      if ((el.getAttribute('type') || '').toLowerCase() === 'password') return;
+      el.setAttribute('autocapitalize', 'none');
+      el.setAttribute('autocorrect', 'off');
+      el.setAttribute('spellcheck', 'false');
+    });
+  }
+  fix();
+  try {
+    new MutationObserver(fix).observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+    });
+  } catch (e) {}
+})();
+true;
+`;
+
 /**
  * Full-screen web login for proxy mode. Loads the Stash URL inside a WebView with
  * the system cookie jar enabled; the reverse proxy (Authelia, etc.) redirects to
@@ -70,6 +95,7 @@ export function LoginOverlay() {
           domStorageEnabled
           javaScriptEnabled
           incognito={false}
+          injectedJavaScript={FIX_INPUTS_JS}
           style={styles.web}
         />
       </SafeAreaView>
