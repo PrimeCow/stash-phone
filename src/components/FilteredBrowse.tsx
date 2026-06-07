@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FilterChipBar } from '@/components/FilterChipBar';
 import { ManageFiltersSheet } from '@/components/ManageFiltersSheet';
+import { useAuthGate } from '@/config/AuthGateContext';
 import type { BrowseMode } from '@/config/FilterPrefsContext';
 import { useFilteredBrowse, type PageArgs } from '@/hooks/useFilteredBrowse';
 import type { StashClient } from '@/lib/graphql';
@@ -29,6 +30,7 @@ export function FilteredBrowse<T>(props: FilteredBrowseProps<T>) {
     getId: props.getId,
   });
   const [showManage, setShowManage] = useState(false);
+  const { promptLogin } = useAuthGate();
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -53,6 +55,14 @@ export function FilteredBrowse<T>(props: FilteredBrowseProps<T>) {
       {b.status === 'loading' || b.status === 'idle' ? (
         <View style={styles.center}>
           <ActivityIndicator color="#fff" />
+        </View>
+      ) : b.status === 'authRequired' ? (
+        <View style={styles.center}>
+          <Ionicons name="lock-closed-outline" size={40} color="#8a8f94" />
+          <Text style={styles.dim}>Sign in to your server to continue.</Text>
+          <Pressable style={styles.retryBtn} onPress={promptLogin}>
+            <Text style={styles.retryText}>Log In</Text>
+          </Pressable>
         </View>
       ) : b.status === 'error' ? (
         <View style={styles.center}>

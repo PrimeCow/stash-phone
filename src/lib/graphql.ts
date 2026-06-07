@@ -13,14 +13,35 @@ export class StashError extends Error {
   }
 }
 
+/**
+ * Thrown (in proxy mode) when a request is bounced to the reverse-proxy login
+ * page instead of reaching Stash — i.e. the session cookie is missing/expired
+ * and the user needs to log in again through the web auth flow.
+ */
+export class AuthRequiredError extends Error {
+  constructor() {
+    super('Sign-in required to reach this server.');
+    this.name = 'AuthRequiredError';
+  }
+}
+
 export interface StashClientConfig {
   serverURL: string;
   apiKey?: string | null;
+  connectionMode?: 'direct' | 'proxy';
 }
 
 function joinURL(base: string, path: string): string {
   const trimmed = base.replace(/\/+$/, '');
   return `${trimmed}/${path}`;
+}
+
+function originOf(url: string): string | null {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
 }
 
 export class StashClient {
@@ -40,6 +61,8 @@ export class StashClient {
       headers.ApiKey = this.config.apiKey;
     }
 
+    const proxy = this.config.connectionMode === 'proxy';
+
     let response: Response;
     try {
       response = await fetch(endpoint, {
@@ -54,15 +77,26 @@ export class StashClient {
       );
     }
 
+    // In proxy mode an unauthenticated request gets 302'd to the SSO login page;
+    // fetch follows it, so we land on a different origin and/or an HTML body.
+    if (proxy && response.url && originOf(response.url) !== originOf(endpoint)) {
+      throw new AuthRequiredError();
+    }
+
     if (!response.ok) {
       const preview = await safePreview(response);
       throw new StashError(`Server returned HTTP ${response.status}.${preview}`);
     }
 
+    const raw = await response.text();
     let envelope: { data?: TData; errors?: GraphQLError[] };
     try {
-      envelope = await response.json();
+      envelope = JSON.parse(raw);
     } catch (err) {
+      // A login HTML page where JSON was expected means the proxy intercepted us.
+      if (proxy && /^\s*</.test(raw)) {
+        throw new AuthRequiredError();
+      }
       throw new StashError('Server returned a response that was not valid JSON.', err);
     }
 
@@ -88,10 +122,18 @@ async function safePreview(response: Response): Promise<string> {
 }
 
 export function makeClient(
-  config: { serverURL: string | null; apiKey?: string | null } | null
+  config: {
+    serverURL: string | null;
+    apiKey?: string | null;
+    connectionMode?: 'direct' | 'proxy';
+  } | null
 ): StashClient {
   if (!config?.serverURL) {
     throw new StashError('Server URL is not configured.');
   }
-  return new StashClient({ serverURL: config.serverURL, apiKey: config.apiKey });
+  return new StashClient({
+    serverURL: config.serverURL,
+    apiKey: config.apiKey,
+    connectionMode: config.connectionMode,
+  });
 }

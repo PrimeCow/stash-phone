@@ -1,20 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { Chip } from '@/components/FilterChipBar';
+import { useAuthGate } from '@/config/AuthGateContext';
 import {
   MODE_INFO,
   useModeFilterPrefs,
   type BrowseMode,
 } from '@/config/FilterPrefsContext';
 import { useServerConfig } from '@/config/ServerConfigContext';
-import { makeClient, type StashClient } from '@/lib/graphql';
+import { AuthRequiredError, makeClient, type StashClient } from '@/lib/graphql';
 import { normalizeForCriterionInput } from '@/lib/normalizeFilter';
 import { fetchSavedFilters } from '@/lib/queries';
 import type { SavedFilter } from '@/types/stash';
 
 const PER_PAGE = 40;
 
-export type BrowseStatus = 'idle' | 'loading' | 'loaded' | 'error';
+export type BrowseStatus = 'idle' | 'loading' | 'loaded' | 'error' | 'authRequired';
 
 export interface PageArgs {
   page: number;
@@ -47,6 +48,7 @@ export function useFilteredBrowse<T>(config: Config<T>) {
   const { mode, defaultSort, fetchPage, getId } = config;
   const server = useServerConfig();
   const prefs = useModeFilterPrefs(mode);
+  const { promptLogin, authEpoch } = useAuthGate();
 
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
   const [items, setItems] = useState<T[]>([]);
@@ -107,6 +109,11 @@ export function useFilteredBrowse<T>(config: Config<T>) {
         setStatus('loaded');
       } catch (err) {
         if (token !== loadToken.current) return;
+        if (err instanceof AuthRequiredError) {
+          if (isInitial) setStatus('authRequired');
+          promptLogin();
+          return;
+        }
         const message = err instanceof Error ? err.message : String(err);
         if (isInitial) {
           setStatus('error');
@@ -118,7 +125,7 @@ export function useFilteredBrowse<T>(config: Config<T>) {
         if (token === loadToken.current && !isInitial) setIsLoadingMore(false);
       }
     },
-    [server, resolvedSort, activeFilter, fetchPage, mode]
+    [server, resolvedSort, activeFilter, fetchPage, mode, promptLogin]
   );
 
   const reload = useCallback(async () => {
@@ -147,7 +154,7 @@ export function useFilteredBrowse<T>(config: Config<T>) {
     return () => {
       cancelled = true;
     };
-  }, [server, mode]);
+  }, [server, mode, authEpoch]);
 
   // Keep the active chip selection valid as chips change.
   useEffect(() => {
@@ -169,7 +176,7 @@ export function useFilteredBrowse<T>(config: Config<T>) {
     if (!prefs.activeFilterID) return;
     reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prefs.activeFilterID, savedFilters, prefs.isLoaded]);
+  }, [prefs.activeFilterID, savedFilters, prefs.isLoaded, authEpoch]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

@@ -14,6 +14,11 @@ the GraphQL client, models, and saved-filter logic are ported across.
 - **Server setup** — enter your Stash URL + optional API key, with a live connection
   test against the `version` query. Credentials persist (API key in the secure
   keychain via `expo-secure-store`, URL in `AsyncStorage`).
+- **Connection modes** — **Direct** (LAN / no front-door auth) or **Behind a login
+  page**. The latter handles a Stash server behind a reverse-proxy SSO (Authelia,
+  Authentik, …): the app opens the provider's login page in a web session whose
+  cookie then authorizes every request — GraphQL, images, and video. When the
+  session expires the app prompts to log in again.
 - **Scenes** — your Stash saved filters render as a chip strip (plus a "Recent
   Scenes" view), shown in an infinite-scroll grid with pull-to-refresh.
   Random-sort filters re-seed on refresh so a refresh actually re-shuffles.
@@ -137,6 +142,26 @@ npx expo run:android
    npx expo run:android --device --variant release
    ```
 
+## Authentication / connection modes
+
+Set this on the setup screen and in **Settings → Connection**:
+
+- **Direct** — talks to Stash directly. Optional **Stash API key** is sent as the
+  `ApiKey` header and folded into media/stream URLs. Use for LAN servers or any setup
+  with no reverse-proxy login.
+- **Behind a login page** — for a Stash server fronted by reverse-proxy SSO (Authelia,
+  Authentik, Cloudflare Access, …). The app loads your server URL in a
+  `react-native-webview` with the **system cookie jar shared**; the proxy redirects to
+  its login page and back, leaving a session cookie that the OS then attaches to all
+  native requests (GraphQL `fetch`, `expo-image`, `expo-video`). No passwords are
+  stored in the app. When a request is bounced back to the login page (expired
+  session), the app shows a **Log In** prompt and reloads after you re-authenticate.
+  A Stash API key can still be supplied for Stash's own auth behind the proxy.
+
+> Verify-on-device note: cookie sharing to the image/video layers is handled by the
+> platform cookie store (iOS `NSHTTPCookieStorage`, Android `CookieManager`). This is
+> wired up but should be confirmed on a real device against your proxy.
+
 ## Networking notes
 
 - **iOS** allows arbitrary loads (`NSAllowsArbitraryLoads`, set in `app.json`) so
@@ -145,6 +170,9 @@ npx expo run:android
   block it**. To reach an HTTP Stash server from a release build, add the
   `expo-build-properties` plugin to `app.json` with
   `android.usesCleartextTraffic: true` and re-run `npx expo prebuild --clean`.
+- Adding `react-native-webview` introduced a new native module — if you already had
+  `ios/` / `android/` generated, re-run `npx expo prebuild` (and `pod install` for
+  iOS) before the next native build.
 
 ## Project layout
 
@@ -161,10 +189,11 @@ src/
 ├── components/               cards (Scene/Marker/Performer/Group), grids
 │   │                         (FilteredBrowse, PaginatedGrid), FilterChipBar,
 │   │                         ManageFiltersSheet, ServerConnectionForm,
-│   │                         PinPad, LockOverlay
+│   │                         PinPad, LockOverlay, LoginOverlay (proxy web login)
 ├── config/                   React contexts:
 │   ├── AppLockContext        PIN lock state (SecureStore + AppState re-lock)
-│   ├── ServerConfigContext   server URL + API key (SecureStore / AsyncStorage)
+│   ├── AuthGateContext       proxy web-login overlay state + reload epoch
+│   ├── ServerConfigContext   server URL + API key + connection mode
 │   ├── FilterPrefsContext    per-mode saved-filter prefs (scenes / markers)
 │   └── PlaybackContext       the playlist handed to the player route
 ├── hooks/

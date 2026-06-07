@@ -7,9 +7,10 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SceneCard } from '@/components/SceneCard';
+import { useAuthGate } from '@/config/AuthGateContext';
 import { usePlayback } from '@/config/PlaybackContext';
 import { useServerConfig } from '@/config/ServerConfigContext';
-import { makeClient } from '@/lib/graphql';
+import { AuthRequiredError, makeClient } from '@/lib/graphql';
 import { fetchGroup } from '@/lib/queries';
 import { authenticatedURL } from '@/lib/stashUrl';
 import type { Group, Scene } from '@/types/stash';
@@ -18,6 +19,7 @@ export default function GroupDetailScreen() {
   const router = useRouter();
   const server = useServerConfig();
   const { setPlaylist } = usePlayback();
+  const { promptLogin, authEpoch } = useAuthGate();
   const { id, data } = useLocalSearchParams<{ id: string; data?: string }>();
 
   const initial = useMemo<Group | null>(() => {
@@ -50,6 +52,10 @@ export default function GroupDetailScreen() {
         }
       } catch (err) {
         if (cancelled) return;
+        if (err instanceof AuthRequiredError) {
+          promptLogin();
+          return;
+        }
         setStatus('error');
         setErrorMessage(err instanceof Error ? err.message : String(err));
       }
@@ -57,7 +63,7 @@ export default function GroupDetailScreen() {
     return () => {
       cancelled = true;
     };
-  }, [id, server]);
+  }, [id, server, authEpoch, promptLogin]);
 
   const scenes = group?.scenes ?? [];
 

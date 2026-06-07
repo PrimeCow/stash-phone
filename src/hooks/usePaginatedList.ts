@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { useAuthGate } from '@/config/AuthGateContext';
 import { useServerConfig } from '@/config/ServerConfigContext';
-import { makeClient, type StashClient } from '@/lib/graphql';
+import { AuthRequiredError, makeClient, type StashClient } from '@/lib/graphql';
 
 const PER_PAGE = 40;
 
-export type ListStatus = 'idle' | 'loading' | 'loaded' | 'error';
+export type ListStatus = 'idle' | 'loading' | 'loaded' | 'error' | 'authRequired';
 
 /**
  * Plain page-by-page list loader (no saved filters), used by the Performers and
@@ -21,6 +22,7 @@ export function usePaginatedList<T>(
   deps: unknown[] = []
 ) {
   const server = useServerConfig();
+  const { promptLogin, authEpoch } = useAuthGate();
 
   const [items, setItems] = useState<T[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -49,6 +51,11 @@ export function usePaginatedList<T>(
         setStatus('loaded');
       } catch (err) {
         if (token !== loadToken.current) return;
+        if (err instanceof AuthRequiredError) {
+          if (isInitial) setStatus('authRequired');
+          promptLogin();
+          return;
+        }
         const message = err instanceof Error ? err.message : String(err);
         if (isInitial) {
           setStatus('error');
@@ -60,7 +67,7 @@ export function usePaginatedList<T>(
         if (token === loadToken.current && !isInitial) setIsLoadingMore(false);
       }
     },
-    [server]
+    [server, promptLogin]
   );
 
   const reload = useCallback(async () => {
@@ -76,7 +83,7 @@ export function usePaginatedList<T>(
   useEffect(() => {
     reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
+  }, [...deps, authEpoch]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

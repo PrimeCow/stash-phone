@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { FlashList } from '@shopify/flash-list';
 import { ActivityIndicator, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 
+import { useAuthGate } from '@/config/AuthGateContext';
 import type { usePaginatedList } from '@/hooks/usePaginatedList';
 
 type ListResult<T> = ReturnType<typeof usePaginatedList<T>>;
@@ -27,11 +28,25 @@ export function PaginatedGrid<T>({
   header,
   showCount = true,
 }: PaginatedGridProps<T>) {
+  const { promptLogin } = useAuthGate();
+
   if (result.status === 'loading' || result.status === 'idle') {
     return (
       <View style={styles.center}>
         {header}
         <ActivityIndicator color="#fff" />
+      </View>
+    );
+  }
+  if (result.status === 'authRequired') {
+    return (
+      <View style={styles.center}>
+        {header}
+        <Ionicons name="lock-closed-outline" size={40} color="#8a8f94" />
+        <Text style={styles.dim}>Sign in to your server to continue.</Text>
+        <Pressable style={styles.retryBtn} onPress={promptLogin}>
+          <Text style={styles.retryText}>Log In</Text>
+        </Pressable>
       </View>
     );
   }
