@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { VideoView, useVideoPlayer } from 'expo-video';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   PanResponder,
@@ -88,6 +88,23 @@ export default function PlayerScreen() {
   const currentScene = entries[index]?.scene;
   const oCount = useOCount(currentScene?.id ?? '', currentScene?.o_counter);
 
+  // Advance to the next entry — shared by the playToEnd auto-advance and the
+  // swipe-left gesture. The seek/play are deferred to the statusChange handler
+  // since play() right after replace() is dropped while the source buffers.
+  const goToNext = useCallback(() => {
+    setIndex((prev) => {
+      const next = prev + 1;
+      if (next < entriesRef.current.length) {
+        const entry = entriesRef.current[next];
+        pendingSeek.current = entry.offset && entry.offset > 0 ? entry.offset : null;
+        pendingPlay.current = true;
+        player.replace(withCookie(entry.url));
+        return next;
+      }
+      return prev;
+    });
+  }, [player]);
+
   // Player event wiring.
   useEffect(() => {
     const subPlay = player.addListener('playingChange', (e) => setIsPlaying(e.isPlaying));
@@ -99,22 +116,7 @@ export default function PlayerScreen() {
       setCurrentTime(e.currentTime ?? 0);
       if (player.duration) setDuration(player.duration);
     });
-    const subEnd = player.addListener('playToEnd', () => {
-      setIndex((prev) => {
-        const next = prev + 1;
-        if (next < entriesRef.current.length) {
-          const entry = entriesRef.current[next];
-          pendingSeek.current = entry.offset && entry.offset > 0 ? entry.offset : null;
-          // Defer the seek/play until the swapped source is ready — calling
-          // play() immediately after replace() is dropped while it buffers, so
-          // the next video would load but sit paused.
-          pendingPlay.current = true;
-          player.replace(withCookie(entry.url));
-          return next;
-        }
-        return prev;
-      });
-    });
+    const subEnd = player.addListener('playToEnd', () => goToNext());
     // Once a freshly-swapped source is ready, apply any queued offset and start
     // it playing (auto-advance).
     const subStatus = player.addListener('statusChange', (e) => {
@@ -134,7 +136,7 @@ export default function PlayerScreen() {
       subEnd.remove();
       subStatus.remove();
     };
-  }, [player]);
+  }, [player, goToNext]);
 
   // ---- Auto-hiding controls -------------------------------------------------
   const [shown, setShown] = useState(true);
@@ -193,6 +195,8 @@ export default function PlayerScreen() {
       PanResponder.create({
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: () => true,
+        // Keep an in-progress scrub even though the root listens for swipes.
+        onPanResponderTerminationRequest: () => false,
         onPanResponderGrant: (e) => {
           bump();
           setScrub(clamp01(e.nativeEvent.locationX / (trackW || 1)));
@@ -216,6 +220,26 @@ export default function PlayerScreen() {
     [trackW, duration, player]
   );
 
+  // ---- Swipe gestures: down closes the player, left plays the next video ----
+  const SWIPE = 70;
+  const gestureResponder = useMemo(
+    () =>
+      PanResponder.create({
+        // Claim only on a deliberate swipe so taps and buttons still work; the
+        // seek bar refuses termination so scrubbing isn't stolen.
+        onMoveShouldSetPanResponder: (_e, g) =>
+          Math.abs(g.dy) > Math.abs(g.dx) ? g.dy > 16 : g.dx < -16,
+        onPanResponderRelease: (_e, g) => {
+          if (g.dy > SWIPE && g.dy > Math.abs(g.dx)) {
+            router.back();
+          } else if (g.dx < -SWIPE && Math.abs(g.dx) > Math.abs(g.dy)) {
+            goToNext();
+          }
+        },
+      }),
+    [router, goToNext]
+  );
+
   if (!playlist || entries.length === 0) {
     return (
       <View style={styles.errorContainer}>
@@ -231,7 +255,7 @@ export default function PlayerScreen() {
   const seekFraction = clamp01(fraction);
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} {...gestureResponder.panHandlers}>
       <VideoView style={styles.video} player={player} contentFit="contain" nativeControls={false} />
 
       {/* Tap anywhere (when controls hidden) to reveal them. */}
