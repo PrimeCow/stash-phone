@@ -57,6 +57,10 @@ export default function PlayerScreen() {
   const [index, setIndex] = useState(0);
   const entriesRef = useRef(entries);
   entriesRef.current = entries;
+  // Mirror index so stable callbacks (the swipe gestures) can read the current
+  // entry without being recreated each frame.
+  const indexRef = useRef(index);
+  indexRef.current = index;
 
   // A seek to apply once the next source has buffered (offsets land here so
   // marker entries resume at their timestamp after a player.replace), plus a
@@ -87,23 +91,27 @@ export default function PlayerScreen() {
   const setOCountStore = useSetOCount();
   const currentScene = entries[index]?.scene;
   const oCount = useOCount(currentScene?.id ?? '', currentScene?.o_counter);
+  const oCountRef = useRef(oCount);
+  oCountRef.current = oCount;
 
-  // Advance to the next entry — shared by the playToEnd auto-advance and the
-  // swipe-left gesture. The seek/play are deferred to the statusChange handler
-  // since play() right after replace() is dropped while the source buffers.
-  const goToNext = useCallback(() => {
-    setIndex((prev) => {
-      const next = prev + 1;
-      if (next < entriesRef.current.length) {
-        const entry = entriesRef.current[next];
+  // Swap to the entry at `target` (deferred seek/play via statusChange, since
+  // play() right after replace() is dropped while the source buffers). Shared
+  // by playToEnd auto-advance and the swipe gestures.
+  const goToEntry = useCallback(
+    (target: number) => {
+      setIndex((prev) => {
+        if (target < 0 || target >= entriesRef.current.length) return prev;
+        const entry = entriesRef.current[target];
         pendingSeek.current = entry.offset && entry.offset > 0 ? entry.offset : null;
         pendingPlay.current = true;
         player.replace(withCookie(entry.url));
-        return next;
-      }
-      return prev;
-    });
-  }, [player]);
+        return target;
+      });
+    },
+    [player]
+  );
+  const goToNext = useCallback(() => goToEntry(indexRef.current + 1), [goToEntry]);
+  const goToPrev = useCallback(() => goToEntry(indexRef.current - 1), [goToEntry]);
 
   // Player event wiring.
   useEffect(() => {
@@ -172,11 +180,12 @@ export default function PlayerScreen() {
     else player.play();
   };
 
-  const onIncrementO = async () => {
-    bump();
-    const scene = entriesRef.current[index]?.scene;
+  // Increment the current scene's o-count (optimistic, with revert). Stable so
+  // the swipe-up gesture can call it; the button wraps it with bump().
+  const incrementO = useCallback(async () => {
+    const scene = entriesRef.current[indexRef.current]?.scene;
     if (!scene) return;
-    const prev = oCount;
+    const prev = oCountRef.current;
     setOCountStore(scene.id, prev + 1); // optimistic
     try {
       const client = makeClient(server);
@@ -185,6 +194,11 @@ export default function PlayerScreen() {
     } catch {
       setOCountStore(scene.id, prev); // revert
     }
+  }, [server, setOCountStore]);
+
+  const onIncrementO = () => {
+    bump();
+    incrementO();
   };
 
   // ---- Seek bar -------------------------------------------------------------
@@ -220,7 +234,8 @@ export default function PlayerScreen() {
     [trackW, duration, player]
   );
 
-  // ---- Swipe gestures: down closes the player, left plays the next video ----
+  // ---- Swipe gestures ------------------------------------------------------
+  // down: close · up: o-count + close · left: next video · right: previous.
   const SWIPE = 70;
   const gestureResponder = useMemo(
     () =>
@@ -228,16 +243,23 @@ export default function PlayerScreen() {
         // Claim only on a deliberate swipe so taps and buttons still work; the
         // seek bar refuses termination so scrubbing isn't stolen.
         onMoveShouldSetPanResponder: (_e, g) =>
-          Math.abs(g.dy) > Math.abs(g.dx) ? g.dy > 16 : g.dx < -16,
+          Math.abs(g.dy) > Math.abs(g.dx) ? Math.abs(g.dy) > 16 : Math.abs(g.dx) > 16,
         onPanResponderRelease: (_e, g) => {
-          if (g.dy > SWIPE && g.dy > Math.abs(g.dx)) {
-            router.back();
-          } else if (g.dx < -SWIPE && Math.abs(g.dx) > Math.abs(g.dy)) {
+          if (Math.abs(g.dy) > Math.abs(g.dx)) {
+            if (g.dy > SWIPE) {
+              router.back();
+            } else if (g.dy < -SWIPE) {
+              incrementO();
+              router.back();
+            }
+          } else if (g.dx < -SWIPE) {
             goToNext();
+          } else if (g.dx > SWIPE) {
+            goToPrev();
           }
         },
       }),
-    [router, goToNext]
+    [router, goToNext, goToPrev, incrementO]
   );
 
   if (!playlist || entries.length === 0) {
