@@ -36,9 +36,6 @@ export function SceneCard({ scene, apiKey, onPress }: Props) {
             <Ionicons name="image-outline" size={36} color="#555" />
           </View>
         )}
-        <View style={styles.playBadge}>
-          <Ionicons name="play" size={14} color="#fff" />
-        </View>
         <OCountBadge count={oCount} style={styles.oCount} />
       </View>
       <Text style={styles.title} numberOfLines={1}>
@@ -65,17 +62,6 @@ const styles = StyleSheet.create({
   thumb: { width: '100%', height: '100%' },
   thumbPlaceholder: { alignItems: 'center', justifyContent: 'center' },
   oCount: { position: 'absolute', top: 6, left: 6 },
-  playBadge: {
-    position: 'absolute',
-    bottom: 6,
-    right: 6,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   title: { color: '#fff', fontSize: 14, fontWeight: '600' },
   tags: { color: '#8a8f94', fontSize: 12, lineHeight: 16 },
 });
