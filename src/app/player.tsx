@@ -63,6 +63,11 @@ export default function PlayerScreen() {
   const [trackW, setTrackW] = useState(0);
   const [scrub, setScrub] = useState<number | null>(null);
 
+  // Mirror scrub into a ref so the timeUpdate listener (registered once) can
+  // tell whether the user is mid-drag without re-subscribing.
+  const scrubRef = useRef<number | null>(null);
+  scrubRef.current = scrub;
+
   // O-count is read from / written to the shared store so increments propagate
   // back to the browse cards without a refetch.
   const setOCountStore = useSetOCount();
@@ -73,6 +78,10 @@ export default function PlayerScreen() {
   useEffect(() => {
     const subPlay = player.addListener('playingChange', (e) => setIsPlaying(e.isPlaying));
     const subTime = player.addListener('timeUpdate', (e) => {
+      // While the user is scrubbing, the bar follows the finger — don't let live
+      // playback updates move the playhead underneath the drag (that ghost
+      // playhead is what snaps the position backwards on release).
+      if (scrubRef.current != null) return;
       setCurrentTime(e.currentTime ?? 0);
       if (player.duration) setDuration(player.duration);
     });
@@ -158,7 +167,14 @@ export default function PlayerScreen() {
         onPanResponderMove: (e) => setScrub(clamp01(e.nativeEvent.locationX / (trackW || 1))),
         onPanResponderRelease: (e) => {
           const f = clamp01(e.nativeEvent.locationX / (trackW || 1));
-          if (duration > 0) player.currentTime = f * duration;
+          if (duration > 0) {
+            const target = f * duration;
+            player.currentTime = target;
+            // Snap the displayed time straight to the target so clearing `scrub`
+            // doesn't briefly fall back to the pre-seek position before the next
+            // timeUpdate lands.
+            setCurrentTime(target);
+          }
           setScrub(null);
           bump();
         },
