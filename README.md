@@ -7,20 +7,25 @@ the GraphQL client, models, and saved-filter logic are ported across.
 
 ## Status
 
-**Phase 1 — Scenes + player.** Working today:
+**Feature parity with stash-tv.** Working today:
 
+- **PIN app lock** — a 4-digit PIN (stored in `expo-secure-store`) is required on
+  cold launch and on every return from the background. Set once on first run.
 - **Server setup** — enter your Stash URL + optional API key, with a live connection
   test against the `version` query. Credentials persist (API key in the secure
   keychain via `expo-secure-store`, URL in `AsyncStorage`).
 - **Scenes** — your Stash saved filters render as a chip strip (plus a "Recent
-  Scenes" view), shown in a 2-column infinite-scroll grid with pull-to-refresh.
+  Scenes" view), shown in an infinite-scroll grid with pull-to-refresh.
   Random-sort filters re-seed on refresh so a refresh actually re-shuffles.
-- **Manage Filters** — toggle which saved filters appear as chips; sign out.
+- **Markers** — saved-filter chips + "Recent Markers" grid; tapping a marker plays
+  its scene starting at the marker's timecode.
+- **Performers** — portrait grid; opening a performer shows their info, a paginated
+  list of their scenes, and a "Play All" queue.
+- **Groups** — portrait grid; opening a group shows its cover/synopsis and scenes,
+  with "Play All" and per-scene playback that auto-advances through the group.
+- **Manage Filters** — per-tab toggle of which saved filters appear as chips; sign out.
 - **Player** — HLS playback (`expo-video`) with the API key folded into the stream
-  URL, native controls, picture-in-picture, and playlist auto-advance (ready for the
-  Groups/Performers "Play All" queues coming later).
-
-**Later phases:** Markers, Performers, Groups tabs; PIN app lock.
+  URL, native controls, picture-in-picture, and playlist auto-advance.
 
 ## Requirements
 
@@ -60,24 +65,30 @@ API key, **Test Connection**, then **Save & Continue**.
 ```
 src/
 ├── app/                      expo-router routes
-│   ├── _layout.tsx           providers (config, prefs, playback) + root Stack
+│   ├── _layout.tsx           providers (lock, config, prefs, playback) + Stack + LockOverlay
 │   ├── index.tsx             gate: redirects to /setup or /(tabs)
 │   ├── setup.tsx             server URL / API key onboarding + connection test
-│   ├── (tabs)/
-│   │   ├── _layout.tsx       bottom tab bar
-│   │   └── index.tsx         Scenes browse (chips, infinite grid, refresh)
+│   ├── (tabs)/               Scenes / Markers / Performers / Groups tabs
+│   ├── performer/[id].tsx    performer detail: info + scenes + Play All
+│   ├── group/[id].tsx        group detail: cover/synopsis + scenes + Play All
 │   └── player.tsx            full-screen HLS player (modal)
-├── components/               SceneCard, FilterChipBar, ManageFiltersSheet
+├── components/               cards (Scene/Marker/Performer/Group), grids
+│   │                         (FilteredBrowse, PaginatedGrid), FilterChipBar,
+│   │                         ManageFiltersSheet, PinPad, LockOverlay
 ├── config/                   React contexts:
+│   ├── AppLockContext        PIN lock state (SecureStore + AppState re-lock)
 │   ├── ServerConfigContext   server URL + API key (SecureStore / AsyncStorage)
-│   ├── FilterPrefsContext    enabled saved-filter IDs, active chip, recent toggle
+│   ├── FilterPrefsContext    per-mode saved-filter prefs (scenes / markers)
 │   └── PlaybackContext       the playlist handed to the player route
+├── hooks/
+│   ├── useFilteredBrowse.ts  saved-filter chips + pagination (Scenes, Markers)
+│   └── usePaginatedList.ts   plain pagination (Performers, Groups, detail lists)
 ├── lib/
 │   ├── graphql.ts            fetch-based Stash GraphQL client (ApiKey header)
-│   ├── queries.ts            FindScenes / FindSavedFilters / Version operations
+│   ├── queries.ts            Find{Scenes,SceneMarkers,Performers,Groups,Group,…}
 │   ├── stashUrl.ts           folds the API key into media/stream URLs
 │   └── normalizeFilter.ts    object_filter → SceneFilterType input shape
-└── types/stash.ts            domain types (Scene, SavedFilter, Performer, …)
+└── types/stash.ts            domain types + display helpers
 ```
 
 ## Compatibility
