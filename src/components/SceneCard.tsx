@@ -3,6 +3,7 @@ import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { OCountBadge } from '@/components/OCountBadge';
+import { useOCount } from '@/config/OCountContext';
 import { authenticatedURL } from '@/lib/stashUrl';
 import type { Scene } from '@/types/stash';
 import { sceneDisplayTitle } from '@/types/stash';
@@ -16,6 +17,7 @@ interface Props {
 export function SceneCard({ scene, apiKey, onPress }: Props) {
   const url = authenticatedURL(scene.paths.screenshot, apiKey);
   const tags = scene.tags.map((t) => t.name).join(', ');
+  const oCount = useOCount(scene.id, scene.o_counter);
 
   return (
     <Pressable
@@ -37,7 +39,7 @@ export function SceneCard({ scene, apiKey, onPress }: Props) {
         <View style={styles.playBadge}>
           <Ionicons name="play" size={14} color="#fff" />
         </View>
-        <OCountBadge count={scene.o_counter} style={styles.oCount} />
+        <OCountBadge count={oCount} style={styles.oCount} />
       </View>
       <Text style={styles.title} numberOfLines={1}>
         {sceneDisplayTitle(scene)}

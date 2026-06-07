@@ -8,6 +8,7 @@ import { LoginOverlay } from '@/components/LoginOverlay';
 import { AppLockProvider } from '@/config/AppLockContext';
 import { AuthGateProvider } from '@/config/AuthGateContext';
 import { FilterPrefsProvider } from '@/config/FilterPrefsContext';
+import { OCountProvider } from '@/config/OCountContext';
 import { PlaybackProvider } from '@/config/PlaybackContext';
 import { ServerConfigProvider } from '@/config/ServerConfigContext';
 
@@ -18,6 +19,7 @@ export default function RootLayout() {
         <ServerConfigProvider>
           <AuthGateProvider>
             <FilterPrefsProvider>
+              <OCountProvider>
               <PlaybackProvider>
                 <ThemeProvider value={DarkTheme}>
                   <StatusBar style="light" />
@@ -40,6 +42,7 @@ export default function RootLayout() {
                   <LockOverlay />
                 </ThemeProvider>
               </PlaybackProvider>
+              </OCountProvider>
             </FilterPrefsProvider>
           </AuthGateProvider>
         </ServerConfigProvider>

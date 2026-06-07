@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 
+import { useOCount, useSetOCount } from '@/config/OCountContext';
 import { usePlayback } from '@/config/PlaybackContext';
 import { useServerConfig } from '@/config/ServerConfigContext';
 import { makeClient } from '@/lib/graphql';
@@ -58,9 +59,14 @@ export default function PlayerScreen() {
   const [isPlaying, setIsPlaying] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [oCount, setOCount] = useState(entries[0]?.scene.o_counter ?? 0);
   const [trackW, setTrackW] = useState(0);
   const [scrub, setScrub] = useState<number | null>(null);
+
+  // O-count is read from / written to the shared store so increments propagate
+  // back to the browse cards without a refetch.
+  const setOCountStore = useSetOCount();
+  const currentScene = entries[index]?.scene;
+  const oCount = useOCount(currentScene?.id ?? '', currentScene?.o_counter);
 
   // Player event wiring.
   useEffect(() => {
@@ -86,11 +92,6 @@ export default function PlayerScreen() {
       subEnd.remove();
     };
   }, [player]);
-
-  // Keep the o-counter in sync with the currently playing scene.
-  useEffect(() => {
-    setOCount(entriesRef.current[index]?.scene.o_counter ?? 0);
-  }, [index]);
 
   // ---- Auto-hiding controls -------------------------------------------------
   const [shown, setShown] = useState(true);
@@ -130,13 +131,14 @@ export default function PlayerScreen() {
     bump();
     const scene = entriesRef.current[index]?.scene;
     if (!scene) return;
-    setOCount((c) => c + 1); // optimistic
+    const prev = oCount;
+    setOCountStore(scene.id, prev + 1); // optimistic
     try {
       const client = makeClient(server);
       const total = await incrementSceneO(client, scene.id);
-      setOCount(total);
+      setOCountStore(scene.id, total);
     } catch {
-      setOCount((c) => Math.max(0, c - 1)); // revert
+      setOCountStore(scene.id, prev); // revert
     }
   };
 

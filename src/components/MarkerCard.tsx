@@ -3,6 +3,7 @@ import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { OCountBadge } from '@/components/OCountBadge';
+import { useOCount } from '@/config/OCountContext';
 import { authenticatedURL } from '@/lib/stashUrl';
 import type { SceneMarker } from '@/types/stash';
 import { markerDisplayTitle, markerSubtitleTags, markerTimecode } from '@/types/stash';
@@ -16,6 +17,7 @@ interface Props {
 export function MarkerCard({ marker, apiKey, onPress }: Props) {
   const url = authenticatedURL(marker.screenshot ?? marker.scene.paths.screenshot, apiKey);
   const subtitle = markerSubtitleTags(marker).join(', ');
+  const oCount = useOCount(marker.scene.id, marker.scene.o_counter);
 
   return (
     <Pressable
@@ -32,7 +34,7 @@ export function MarkerCard({ marker, apiKey, onPress }: Props) {
         <View style={styles.timecode}>
           <Text style={styles.timecodeText}>{markerTimecode(marker)}</Text>
         </View>
-        <OCountBadge count={marker.scene.o_counter} style={styles.oCount} />
+        <OCountBadge count={oCount} style={styles.oCount} />
       </View>
       <Text style={styles.title} numberOfLines={1}>
         {markerDisplayTitle(marker)}
