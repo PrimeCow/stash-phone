@@ -1,6 +1,6 @@
 // GraphQL operations + typed wrappers, ported from the tvOS Queries/.
 
-import type { Performer, Scene, SavedFilter, SceneMarker } from '@/types/stash';
+import type { Group, Performer, Scene, SavedFilter, SceneMarker } from '@/types/stash';
 import { StashClient } from './graphql';
 
 const SCENE_FIELDS = `
@@ -219,4 +219,64 @@ export async function fetchScenesForPerformer(
       performers: { value: [performerID], modifier: 'INCLUDES' },
     },
   });
+}
+
+// groups ---------------------------------------------------------------------
+
+const GROUP_FIELDS = `
+  id
+  name
+  aliases
+  duration
+  date
+  rating100
+  director
+  synopsis
+  scene_count
+  front_image_path
+  back_image_path
+  studio { id name image_path }
+`;
+
+const FIND_GROUPS_QUERY = `
+query FindGroups($filter: FindFilterType) {
+  findGroups(filter: $filter) {
+    count
+    groups {${GROUP_FIELDS}}
+  }
+}`;
+
+export interface FindGroupsResult {
+  count: number;
+  groups: Group[];
+}
+
+export async function fetchGroups(
+  client: StashClient,
+  page: number,
+  perPage: number,
+  sort = 'name',
+  direction = 'ASC'
+): Promise<FindGroupsResult> {
+  const data = await client.execute<{ findGroups: FindGroupsResult }>(
+    'FindGroups',
+    FIND_GROUPS_QUERY,
+    { filter: { page, per_page: perPage, sort, direction } }
+  );
+  return data.findGroups;
+}
+
+const FIND_GROUP_QUERY = `
+query FindGroup($id: ID!) {
+  findGroup(id: $id) {
+    ${GROUP_FIELDS}
+    scenes {${SCENE_FIELDS}}
+  }
+}`;
+
+export async function fetchGroup(client: StashClient, id: string): Promise<Group | null> {
+  const data = await client.execute<{ findGroup: Group | null }>('FindGroup', FIND_GROUP_QUERY, {
+    id,
+  });
+  return data.findGroup;
 }

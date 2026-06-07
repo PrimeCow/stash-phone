@@ -48,6 +48,22 @@ export interface Scene {
   tags: Tag[];
 }
 
+export interface Group {
+  id: string;
+  name: string;
+  aliases?: string | null;
+  duration?: number | null;
+  date?: string | null;
+  rating100?: number | null;
+  director?: string | null;
+  synopsis?: string | null;
+  scene_count: number;
+  front_image_path?: string | null;
+  back_image_path?: string | null;
+  studio?: Studio | null;
+  scenes?: Scene[] | null;
+}
+
 export interface SceneMarker {
   id: string;
   title: string;
