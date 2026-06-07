@@ -8,108 +8,145 @@ import React, {
   useState,
 } from 'react';
 
-// Phase 1 covers the Scenes mode only; markers prefs come with the Markers tab.
-export const RECENT_SCENES_ID = 'recent';
+// Filterable browse modes. Each maps to a Stash FilterMode and keeps its own
+// enabled-filter set, active chip, and "recent" toggle — mirroring the tvOS app.
+export type BrowseMode = 'scenes' | 'markers';
 
-const KEYS = {
-  enabledFilterIDs: 'stash.enabledFilterIDs',
-  showRecentScenes: 'stash.showRecentScenes',
-  activeFilterID: 'stash.activeFilterID',
+export const MODE_INFO: Record<
+  BrowseMode,
+  { recentChipID: string; stashFilterMode: string }
+> = {
+  scenes: { recentChipID: 'recent', stashFilterMode: 'SCENES' },
+  markers: { recentChipID: 'recent_markers', stashFilterMode: 'SCENE_MARKERS' },
 };
+
+interface ModeState {
+  enabledFilterIDs: string[];
+  showRecent: boolean;
+  activeFilterID: string | null;
+}
+
+const DEFAULT_MODE_STATE: ModeState = {
+  enabledFilterIDs: [],
+  showRecent: true,
+  activeFilterID: null,
+};
+
+function keyFor(mode: BrowseMode) {
+  return {
+    enabled: `stash.${mode}.enabledFilterIDs`,
+    showRecent: `stash.${mode}.showRecent`,
+    active: `stash.${mode}.activeFilterID`,
+  };
+}
+
+export interface ModeFilterPrefs {
+  isLoaded: boolean;
+  recentChipID: string;
+  enabledFilterIDs: string[];
+  showRecent: boolean;
+  activeFilterID: string | null;
+  toggleFilter: (id: string) => void;
+  setShowRecent: (value: boolean) => void;
+  setActiveFilterID: (id: string | null) => void;
+}
 
 interface FilterPrefsContextValue {
   isLoaded: boolean;
-  enabledFilterIDs: string[];
-  showRecentScenes: boolean;
-  activeFilterID: string | null;
-  setEnabledFilterIDs: (ids: string[]) => void;
-  toggleFilter: (id: string) => void;
-  setShowRecentScenes: (value: boolean) => void;
-  setActiveFilterID: (id: string | null) => void;
+  states: Record<BrowseMode, ModeState>;
+  update: (mode: BrowseMode, patch: Partial<ModeState>) => void;
 }
 
 const Ctx = createContext<FilterPrefsContextValue | null>(null);
 
 export function FilterPrefsProvider({ children }: { children: React.ReactNode }) {
   const [isLoaded, setIsLoaded] = useState(false);
-  const [enabledFilterIDs, setEnabledState] = useState<string[]>([]);
-  const [showRecentScenes, setShowRecentState] = useState(true);
-  const [activeFilterID, setActiveState] = useState<string | null>(null);
+  const [states, setStates] = useState<Record<BrowseMode, ModeState>>({
+    scenes: { ...DEFAULT_MODE_STATE },
+    markers: { ...DEFAULT_MODE_STATE },
+  });
 
   useEffect(() => {
     (async () => {
       try {
-        const entries = await AsyncStorage.multiGet([
-          KEYS.enabledFilterIDs,
-          KEYS.showRecentScenes,
-          KEYS.activeFilterID,
-        ]);
-        const map = Object.fromEntries(entries);
-        if (map[KEYS.enabledFilterIDs]) {
-          setEnabledState(JSON.parse(map[KEYS.enabledFilterIDs]!));
+        const modes: BrowseMode[] = ['scenes', 'markers'];
+        const allKeys = modes.flatMap((m) => Object.values(keyFor(m)));
+        const entries = Object.fromEntries(await AsyncStorage.multiGet(allKeys));
+        const next = {} as Record<BrowseMode, ModeState>;
+        for (const m of modes) {
+          const k = keyFor(m);
+          next[m] = {
+            enabledFilterIDs: entries[k.enabled] ? JSON.parse(entries[k.enabled]!) : [],
+            showRecent: entries[k.showRecent] != null ? entries[k.showRecent] === 'true' : true,
+            activeFilterID: entries[k.active] ?? null,
+          };
         }
-        if (map[KEYS.showRecentScenes] != null) {
-          setShowRecentState(map[KEYS.showRecentScenes] === 'true');
-        }
-        setActiveState(map[KEYS.activeFilterID] ?? null);
+        setStates(next);
       } finally {
         setIsLoaded(true);
       }
     })();
   }, []);
 
-  const setEnabledFilterIDs = useCallback((ids: string[]) => {
-    setEnabledState(ids);
-    AsyncStorage.setItem(KEYS.enabledFilterIDs, JSON.stringify(ids));
-  }, []);
-
-  const toggleFilter = useCallback((id: string) => {
-    setEnabledState((prev) => {
-      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
-      AsyncStorage.setItem(KEYS.enabledFilterIDs, JSON.stringify(next));
-      return next;
+  const update = useCallback((mode: BrowseMode, patch: Partial<ModeState>) => {
+    setStates((prev) => {
+      const merged = { ...prev[mode], ...patch };
+      const k = keyFor(mode);
+      if (patch.enabledFilterIDs !== undefined) {
+        AsyncStorage.setItem(k.enabled, JSON.stringify(merged.enabledFilterIDs));
+      }
+      if (patch.showRecent !== undefined) {
+        AsyncStorage.setItem(k.showRecent, String(merged.showRecent));
+      }
+      if (patch.activeFilterID !== undefined) {
+        if (merged.activeFilterID) AsyncStorage.setItem(k.active, merged.activeFilterID);
+        else AsyncStorage.removeItem(k.active);
+      }
+      return { ...prev, [mode]: merged };
     });
   }, []);
 
-  const setShowRecentScenes = useCallback((value: boolean) => {
-    setShowRecentState(value);
-    AsyncStorage.setItem(KEYS.showRecentScenes, String(value));
-  }, []);
-
-  const setActiveFilterID = useCallback((id: string | null) => {
-    setActiveState(id);
-    if (id) AsyncStorage.setItem(KEYS.activeFilterID, id);
-    else AsyncStorage.removeItem(KEYS.activeFilterID);
-  }, []);
-
   const value = useMemo<FilterPrefsContextValue>(
-    () => ({
-      isLoaded,
-      enabledFilterIDs,
-      showRecentScenes,
-      activeFilterID,
-      setEnabledFilterIDs,
-      toggleFilter,
-      setShowRecentScenes,
-      setActiveFilterID,
-    }),
-    [
-      isLoaded,
-      enabledFilterIDs,
-      showRecentScenes,
-      activeFilterID,
-      setEnabledFilterIDs,
-      toggleFilter,
-      setShowRecentScenes,
-      setActiveFilterID,
-    ]
+    () => ({ isLoaded, states, update }),
+    [isLoaded, states, update]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
-export function useFilterPrefs(): FilterPrefsContextValue {
+/** Mode-scoped view of the filter preferences, matching the tvOS per-mode API. */
+export function useModeFilterPrefs(mode: BrowseMode): ModeFilterPrefs {
   const ctx = useContext(Ctx);
-  if (!ctx) throw new Error('useFilterPrefs must be used within FilterPrefsProvider');
-  return ctx;
+  if (!ctx) throw new Error('useModeFilterPrefs must be used within FilterPrefsProvider');
+  const state = ctx.states[mode];
+
+  const toggleFilter = useCallback(
+    (id: string) => {
+      const set = ctx.states[mode].enabledFilterIDs;
+      const next = set.includes(id) ? set.filter((x) => x !== id) : [...set, id];
+      ctx.update(mode, { enabledFilterIDs: next });
+    },
+    [ctx, mode]
+  );
+
+  const setShowRecent = useCallback(
+    (value: boolean) => ctx.update(mode, { showRecent: value }),
+    [ctx, mode]
+  );
+
+  const setActiveFilterID = useCallback(
+    (id: string | null) => ctx.update(mode, { activeFilterID: id }),
+    [ctx, mode]
+  );
+
+  return {
+    isLoaded: ctx.isLoaded,
+    recentChipID: MODE_INFO[mode].recentChipID,
+    enabledFilterIDs: state.enabledFilterIDs,
+    showRecent: state.showRecent,
+    activeFilterID: state.activeFilterID,
+    toggleFilter,
+    setShowRecent,
+    setActiveFilterID,
+  };
 }

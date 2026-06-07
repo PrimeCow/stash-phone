@@ -48,6 +48,19 @@ export interface Scene {
   tags: Tag[];
 }
 
+export interface SceneMarker {
+  id: string;
+  title: string;
+  seconds: number;
+  end_seconds?: number | null;
+  stream?: string | null;
+  preview?: string | null;
+  screenshot?: string | null;
+  primary_tag: Tag;
+  tags: Tag[];
+  scene: Scene;
+}
+
 export interface SavedFindFilter {
   q?: string | null;
   sort?: string | null;
@@ -83,4 +96,26 @@ export function performerAliasesText(performer: Performer): string | null {
   const list = performer.alias_list;
   if (!list || list.length === 0) return null;
   return list.join(', ');
+}
+
+export function markerDisplayTitle(marker: SceneMarker): string {
+  const trimmed = marker.title.trim();
+  return trimmed || marker.primary_tag.name;
+}
+
+export function markerSubtitleTags(marker: SceneMarker): string[] {
+  const trimmed = marker.title.trim();
+  const others = marker.tags
+    .filter((t) => t.id !== marker.primary_tag.id)
+    .map((t) => t.name);
+  return trimmed ? [marker.primary_tag.name, ...others] : others;
+}
+
+export function markerTimecode(marker: SceneMarker): string {
+  const total = Math.floor(marker.seconds);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
 }

@@ -1,6 +1,6 @@
 // GraphQL operations + typed wrappers, ported from the tvOS Queries/.
 
-import type { Scene, SavedFilter } from '@/types/stash';
+import type { Scene, SavedFilter, SceneMarker } from '@/types/stash';
 import { StashClient } from './graphql';
 
 const SCENE_FIELDS = `
@@ -105,4 +105,61 @@ export async function fetchScenes(
     variables
   );
   return data.findScenes;
+}
+
+// scene markers --------------------------------------------------------------
+
+const FIND_SCENE_MARKERS_QUERY = `
+query FindSceneMarkers($filter: FindFilterType, $scene_marker_filter: SceneMarkerFilterType) {
+  findSceneMarkers(filter: $filter, scene_marker_filter: $scene_marker_filter) {
+    count
+    scene_markers {
+      id
+      title
+      seconds
+      end_seconds
+      stream
+      preview
+      screenshot
+      primary_tag { id name }
+      tags { id name }
+      scene {${SCENE_FIELDS}}
+    }
+  }
+}`;
+
+export interface FindMarkersArgs {
+  page?: number;
+  perPage?: number;
+  sort?: string;
+  direction?: string;
+  markerFilter?: unknown;
+}
+
+export interface FindMarkersResult {
+  count: number;
+  scene_markers: SceneMarker[];
+}
+
+export async function fetchSceneMarkers(
+  client: StashClient,
+  args: FindMarkersArgs
+): Promise<FindMarkersResult> {
+  const variables: Record<string, unknown> = {
+    filter: {
+      page: args.page ?? 1,
+      per_page: args.perPage ?? 40,
+      sort: args.sort ?? 'created_at',
+      direction: args.direction ?? 'DESC',
+    },
+  };
+  if (args.markerFilter != null) {
+    variables.scene_marker_filter = args.markerFilter;
+  }
+  const data = await client.execute<{ findSceneMarkers: FindMarkersResult }>(
+    'FindSceneMarkers',
+    FIND_SCENE_MARKERS_QUERY,
+    variables
+  );
+  return data.findSceneMarkers;
 }

@@ -10,19 +10,22 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useFilterPrefs } from '@/config/FilterPrefsContext';
+import { useModeFilterPrefs, type BrowseMode } from '@/config/FilterPrefsContext';
 import { useServerConfig } from '@/config/ServerConfigContext';
 import type { SavedFilter } from '@/types/stash';
 
 interface Props {
   visible: boolean;
   onClose: () => void;
+  mode: BrowseMode;
   savedFilters: SavedFilter[];
 }
 
-export function ManageFiltersSheet({ visible, onClose, savedFilters }: Props) {
-  const prefs = useFilterPrefs();
+export function ManageFiltersSheet({ visible, onClose, mode, savedFilters }: Props) {
+  const prefs = useModeFilterPrefs(mode);
   const config = useServerConfig();
+  const recentLabel = mode === 'markers' ? 'Recent Markers' : 'Recent Scenes';
+  const recentSub = mode === 'markers' ? 'Newest markers, no filter' : 'Newest scenes, no filter';
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -36,10 +39,10 @@ export function ManageFiltersSheet({ visible, onClose, savedFilters }: Props) {
 
         <ScrollView contentContainerStyle={styles.content}>
           <Row
-            label="Recent Scenes"
-            sublabel="Newest scenes, no filter"
-            value={prefs.showRecentScenes}
-            onValueChange={prefs.setShowRecentScenes}
+            label={recentLabel}
+            sublabel={recentSub}
+            value={prefs.showRecent}
+            onValueChange={prefs.setShowRecent}
           />
 
           {savedFilters.length > 0 && <Text style={styles.sectionTitle}>Saved Filters</Text>}
