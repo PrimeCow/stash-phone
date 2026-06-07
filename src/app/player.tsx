@@ -1,11 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Animated,
   PanResponder,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -15,12 +18,14 @@ import { useOCount, useSetOCount } from '@/config/OCountContext';
 import { usePlayback } from '@/config/PlaybackContext';
 import { useServerConfig } from '@/config/ServerConfigContext';
 import { makeClient } from '@/lib/graphql';
-import { incrementSceneO } from '@/lib/queries';
+import { fetchSceneMarkersForScene, incrementSceneO, type PlayerMarker } from '@/lib/queries';
 import { withCookie } from '@/lib/session';
 import { authenticatedURL } from '@/lib/stashUrl';
-import type { Scene } from '@/types/stash';
+import type { Performer, Scene } from '@/types/stash';
 
 const HIDE_DELAY = 3500;
+
+type PlaylistEntry = { scene: Scene; url: string; offset: number | undefined };
 
 function fmt(seconds: number): string {
   let s = Math.floor(isFinite(seconds) && seconds > 0 ? seconds : 0);
@@ -39,22 +44,25 @@ export default function PlayerScreen() {
   const server = useServerConfig();
 
   // Pair each playable stream with its scene (and optional marker start offset)
-  // so the o-counter stays aligned and each entry resumes at the right time.
-  const entries = useMemo(() => {
-    if (!playlist) return [] as { scene: Scene; url: string; offset?: number }[];
-    return playlist.scenes
+  // so the o-counter stays aligned and each entry resumes at the right time. We
+  // keep the WHOLE loaded list (no slicing) so the position counter is absolute
+  // and swipe-right can go back past the tapped scene; playback just starts at
+  // the tapped entry.
+  const { entries, initialIndex } = useMemo(() => {
+    if (!playlist) return { entries: [] as PlaylistEntry[], initialIndex: 0 };
+    const startId = playlist.scenes[playlist.startIndex]?.id;
+    const all = playlist.scenes
       .map((scene, i) => ({
         scene,
         url: authenticatedURL(scene.paths.stream, server.apiKey),
         offset: playlist.offsets?.[i],
       }))
-      .slice(playlist.startIndex)
-      .filter(
-        (e): e is { scene: Scene; url: string; offset: number | undefined } => e.url != null
-      );
+      .filter((e): e is PlaylistEntry => e.url != null);
+    const start = Math.max(0, all.findIndex((e) => e.scene.id === startId));
+    return { entries: all, initialIndex: start };
   }, [playlist, server.apiKey]);
 
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useState(initialIndex);
   const entriesRef = useRef(entries);
   entriesRef.current = entries;
   // Mirror index so stable callbacks (the swipe gestures) can read the current
@@ -68,8 +76,8 @@ export default function PlayerScreen() {
   const pendingSeek = useRef<number | null>(null);
   const pendingPlay = useRef(false);
 
-  const player = useVideoPlayer(entries[0] ? withCookie(entries[0].url) : null, (p) => {
-    const t = entries[0]?.offset;
+  const player = useVideoPlayer(entries[initialIndex] ? withCookie(entries[initialIndex].url) : null, (p) => {
+    const t = entries[initialIndex]?.offset;
     if (t && t > 0) p.currentTime = t;
     p.timeUpdateEventInterval = 0.5;
     p.play();
@@ -160,6 +168,15 @@ export default function PlayerScreen() {
     };
   }, [player, goToNext]);
 
+  // ---- Performers / markers panel ------------------------------------------
+  const [panel, setPanel] = useState<'none' | 'performers' | 'markers'>('none');
+  const panelRef = useRef(panel);
+  panelRef.current = panel;
+  const [markers, setMarkers] = useState<PlayerMarker[]>([]);
+  const [markersLoading, setMarkersLoading] = useState(false);
+  // Markers fetched lazily on first open and cached per scene id.
+  const markerCache = useRef<Record<string, PlayerMarker[]>>({});
+
   // ---- Auto-hiding controls -------------------------------------------------
   const [shown, setShown] = useState(true);
   const [interaction, setInteraction] = useState(0);
@@ -174,12 +191,12 @@ export default function PlayerScreen() {
   }, [shown, opacity]);
 
   // Hide a few seconds after the last interaction, but only while playing and
-  // not mid-scrub.
+  // not mid-scrub or browsing a panel.
   useEffect(() => {
-    if (!shown || !isPlaying || scrub != null) return;
+    if (!shown || !isPlaying || scrub != null || panel !== 'none') return;
     const t = setTimeout(() => setShown(false), HIDE_DELAY);
     return () => clearTimeout(t);
-  }, [shown, isPlaying, interaction, scrub]);
+  }, [shown, isPlaying, interaction, scrub, panel]);
 
   const reveal = () => {
     setShown(true);
@@ -213,6 +230,53 @@ export default function PlayerScreen() {
   const onIncrementO = () => {
     bump();
     incrementO();
+  };
+
+  const closePanel = () => {
+    bump();
+    setPanel('none');
+  };
+
+  const openPerformers = () => {
+    bump();
+    setPanel('performers');
+  };
+
+  const openMarkers = async () => {
+    bump();
+    const scene = entriesRef.current[indexRef.current]?.scene;
+    if (!scene) return;
+    setPanel('markers');
+    const cached = markerCache.current[scene.id];
+    if (cached) {
+      setMarkers(cached);
+      return;
+    }
+    setMarkers([]);
+    setMarkersLoading(true);
+    try {
+      const client = makeClient(server);
+      const list = await fetchSceneMarkersForScene(client, scene.id);
+      markerCache.current[scene.id] = list;
+      // Guard against the scene changing while the request was in flight.
+      if (entriesRef.current[indexRef.current]?.scene.id === scene.id) setMarkers(list);
+    } catch {
+      setMarkers([]);
+    } finally {
+      setMarkersLoading(false);
+    }
+  };
+
+  const openPerformer = (p: Performer) => {
+    setPanel('none');
+    router.push({ pathname: '/performer/[id]', params: { id: p.id, data: JSON.stringify(p) } });
+  };
+
+  const jumpToMarker = (seconds: number) => {
+    player.currentTime = seconds;
+    setCurrentTime(seconds);
+    setPanel('none');
+    bump();
   };
 
   // ---- Seek bar -------------------------------------------------------------
@@ -255,9 +319,14 @@ export default function PlayerScreen() {
     () =>
       PanResponder.create({
         // Claim only on a deliberate swipe so taps and buttons still work; the
-        // seek bar refuses termination so scrubbing isn't stolen.
+        // seek bar refuses termination so scrubbing isn't stolen. Disabled while
+        // a panel is open so list scrolling / taps aren't hijacked.
         onMoveShouldSetPanResponder: (_e, g) =>
-          Math.abs(g.dy) > Math.abs(g.dx) ? Math.abs(g.dy) > 16 : Math.abs(g.dx) > 16,
+          panelRef.current !== 'none'
+            ? false
+            : Math.abs(g.dy) > Math.abs(g.dx)
+              ? Math.abs(g.dy) > 16
+              : Math.abs(g.dx) > 16,
         onPanResponderRelease: (_e, g) => {
           if (Math.abs(g.dy) > Math.abs(g.dx)) {
             if (g.dy > SWIPE) {
@@ -314,6 +383,12 @@ export default function PlayerScreen() {
                 {index + 1} / {entries.length}
               </Text>
             )}
+            <Pressable onPress={openPerformers} hitSlop={10} style={styles.iconBtn}>
+              <Ionicons name="people" size={22} color="#fff" />
+            </Pressable>
+            <Pressable onPress={openMarkers} hitSlop={10} style={styles.iconBtn}>
+              <Ionicons name="bookmark" size={20} color="#fff" />
+            </Pressable>
             <Pressable onPress={onIncrementO} hitSlop={10} style={styles.oButton}>
               <Ionicons name="water" size={20} color="#fff" />
               <Text style={styles.oButtonText}>{oCount}</Text>
@@ -349,6 +424,62 @@ export default function PlayerScreen() {
           <Text style={styles.time}>{fmt(duration)}</Text>
         </View>
       </Animated.View>
+
+      {/* Performers / markers sheet — sits above the controls until dismissed. */}
+      {panel !== 'none' && (
+        <View style={styles.panelOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={closePanel} />
+          <View style={styles.panelSheet}>
+            <View style={styles.panelHeader}>
+              <Text style={styles.panelTitle}>
+                {panel === 'performers' ? 'Performers' : 'Markers'}
+              </Text>
+              <Pressable onPress={closePanel} hitSlop={12} style={styles.iconBtn}>
+                <Ionicons name="close" size={24} color="#fff" />
+              </Pressable>
+            </View>
+            <ScrollView contentContainerStyle={styles.panelList}>
+              {panel === 'performers'
+                ? (currentScene?.performers?.length ?? 0) === 0 ? (
+                    <Text style={styles.panelEmpty}>No performers for this scene.</Text>
+                  ) : (
+                    (currentScene?.performers ?? []).map((p) => {
+                      const img = authenticatedURL(p.image_path, server.apiKey);
+                      return (
+                        <Pressable key={p.id} style={styles.row} onPress={() => openPerformer(p)}>
+                          {img ? (
+                            <Image style={styles.avatar} source={withCookie(img)} contentFit="cover" />
+                          ) : (
+                            <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                              <Ionicons name="person" size={22} color="#555" />
+                            </View>
+                          )}
+                          <Text style={styles.rowTitle} numberOfLines={1}>
+                            {p.name}
+                          </Text>
+                          <Ionicons name="chevron-forward" size={20} color="#8a8f94" />
+                        </Pressable>
+                      );
+                    })
+                  )
+                : markersLoading ? (
+                    <ActivityIndicator color="#fff" style={styles.panelSpinner} />
+                  ) : markers.length === 0 ? (
+                    <Text style={styles.panelEmpty}>No markers for this scene.</Text>
+                  ) : (
+                    markers.map((m) => (
+                      <Pressable key={m.id} style={styles.row} onPress={() => jumpToMarker(m.seconds)}>
+                        <Text style={styles.markerTime}>{fmt(m.seconds)}</Text>
+                        <Text style={styles.rowTitle} numberOfLines={1}>
+                          {m.title.trim() || m.primary_tag.name}
+                        </Text>
+                      </Pressable>
+                    ))
+                  )}
+            </ScrollView>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -442,4 +573,50 @@ const styles = StyleSheet.create({
   errorText: { color: '#f85149', fontSize: 15 },
   backBtn: { backgroundColor: '#e0245e', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10 },
   backText: { color: '#fff', fontWeight: '600' },
+  panelOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  panelSheet: {
+    maxHeight: '70%',
+    backgroundColor: '#16171a',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    paddingBottom: 32,
+  },
+  panelHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 6,
+  },
+  panelTitle: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  panelList: { paddingHorizontal: 12, paddingTop: 4 },
+  panelSpinner: { paddingVertical: 28 },
+  panelEmpty: { color: '#8a8f94', fontSize: 15, textAlign: 'center', paddingVertical: 28 },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+  },
+  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#1a1b1e' },
+  avatarPlaceholder: { alignItems: 'center', justifyContent: 'center' },
+  rowTitle: { color: '#fff', fontSize: 16, fontWeight: '600', flex: 1 },
+  markerTime: {
+    color: '#e0245e',
+    fontSize: 14,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+    width: 60,
+  },
 });

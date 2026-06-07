@@ -1,6 +1,6 @@
 // GraphQL operations + typed wrappers, ported from the tvOS Queries/.
 
-import type { Group, Performer, Scene, SavedFilter, SceneMarker } from '@/types/stash';
+import type { Group, Performer, Scene, SavedFilter, SceneMarker, Tag } from '@/types/stash';
 import { StashClient } from './graphql';
 
 const SCENE_FIELDS = `
@@ -198,6 +198,43 @@ export async function fetchSceneMarkers(
     variables
   );
   return data.findSceneMarkers;
+}
+
+/** Markers belonging to a single scene, for the in-player marker list. */
+const FIND_SCENE_FOR_MARKERS_QUERY = `
+query FindSceneForMarkers($id: ID!) {
+  findScene(id: $id) {
+    scene_markers {
+      id
+      title
+      seconds
+      end_seconds
+      primary_tag { id name }
+      tags { id name }
+    }
+  }
+}`;
+
+export interface PlayerMarker {
+  id: string;
+  title: string;
+  seconds: number;
+  end_seconds?: number | null;
+  primary_tag: Tag;
+  tags: Tag[];
+}
+
+export async function fetchSceneMarkersForScene(
+  client: StashClient,
+  sceneID: string
+): Promise<PlayerMarker[]> {
+  const data = await client.execute<{ findScene: { scene_markers: PlayerMarker[] } | null }>(
+    'FindSceneForMarkers',
+    FIND_SCENE_FOR_MARKERS_QUERY,
+    { id: sceneID }
+  );
+  const markers = data.findScene?.scene_markers ?? [];
+  return [...markers].sort((a, b) => a.seconds - b.seconds);
 }
 
 // performers -----------------------------------------------------------------
