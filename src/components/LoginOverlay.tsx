@@ -17,25 +17,36 @@ function originOf(url: string): string | null {
 
 // Reverse-proxy login pages (e.g. Authelia) often don't set autocapitalize on
 // their username field, so iOS capitalizes the first letter and you can't enter a
-// lowercase username. Force the right input attributes on every text field, and
-// keep doing so for inputs the page renders later (Authelia is a SPA).
+// lowercase username. Force the right input attributes on every text field. Run
+// before content loads so the MutationObserver is watching when Authelia (a SPA)
+// renders the form, and re-apply on focus as a backstop.
 const FIX_INPUTS_JS = `
 (function() {
-  function fix() {
-    document.querySelectorAll('input').forEach(function(el) {
-      if ((el.getAttribute('type') || '').toLowerCase() === 'password') return;
-      el.setAttribute('autocapitalize', 'none');
-      el.setAttribute('autocorrect', 'off');
-      el.setAttribute('spellcheck', 'false');
-    });
+  function setIf(el, name, val) {
+    if (el.getAttribute(name) !== val) el.setAttribute(name, val);
   }
-  fix();
-  try {
-    new MutationObserver(fix).observe(document.documentElement, {
-      childList: true,
-      subtree: true,
-    });
-  } catch (e) {}
+  function fix() {
+    var els = document.querySelectorAll('input, textarea');
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      if ((el.getAttribute('type') || '').toLowerCase() === 'password') continue;
+      setIf(el, 'autocapitalize', 'none');
+      setIf(el, 'autocorrect', 'off');
+      setIf(el, 'spellcheck', 'false');
+    }
+  }
+  function start() {
+    fix();
+    try {
+      new MutationObserver(fix).observe(document.documentElement || document, {
+        childList: true,
+        subtree: true,
+      });
+    } catch (e) {}
+    document.addEventListener('focusin', fix, true);
+  }
+  if (document.documentElement) start();
+  else document.addEventListener('DOMContentLoaded', start);
 })();
 true;
 `;
@@ -95,6 +106,7 @@ export function LoginOverlay() {
           domStorageEnabled
           javaScriptEnabled
           incognito={false}
+          injectedJavaScriptBeforeContentLoaded={FIX_INPUTS_JS}
           injectedJavaScript={FIX_INPUTS_JS}
           style={styles.web}
         />
