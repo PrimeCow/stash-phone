@@ -78,8 +78,22 @@ export default function PlayerScreen() {
   const [isPlaying, setIsPlaying] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [trackW, setTrackW] = useState(0);
   const [scrub, setScrub] = useState<number | null>(null);
+
+  // Track geometry in screen coordinates. We compute the scrub position from the
+  // gesture's absolute pageX minus the track origin, NOT nativeEvent.locationX —
+  // locationX is relative to whichever child (thumb/fill) the finger is over, so
+  // it snaps between coordinate systems and makes the playhead flicker.
+  const trackRef = useRef<View>(null);
+  const trackX = useRef(0);
+  const trackW = useRef(0);
+  const measureTrack = useCallback(() => {
+    trackRef.current?.measureInWindow((x, _y, w) => {
+      trackX.current = x;
+      trackW.current = w;
+    });
+  }, []);
+  const fractionAt = (screenX: number) => clamp01((screenX - trackX.current) / (trackW.current || 1));
 
   // Mirror scrub into a ref so the timeUpdate listener (registered once) can
   // tell whether the user is mid-drag without re-subscribing.
@@ -211,13 +225,13 @@ export default function PlayerScreen() {
         onMoveShouldSetPanResponder: () => true,
         // Keep an in-progress scrub even though the root listens for swipes.
         onPanResponderTerminationRequest: () => false,
-        onPanResponderGrant: (e) => {
+        onPanResponderGrant: (_e, g) => {
           bump();
-          setScrub(clamp01(e.nativeEvent.locationX / (trackW || 1)));
+          setScrub(fractionAt(g.x0));
         },
-        onPanResponderMove: (e) => setScrub(clamp01(e.nativeEvent.locationX / (trackW || 1))),
-        onPanResponderRelease: (e) => {
-          const f = clamp01(e.nativeEvent.locationX / (trackW || 1));
+        onPanResponderMove: (_e, g) => setScrub(fractionAt(g.moveX)),
+        onPanResponderRelease: (_e, g) => {
+          const f = fractionAt(g.moveX || g.x0);
           if (duration > 0) {
             const target = f * duration;
             player.currentTime = target;
@@ -231,7 +245,7 @@ export default function PlayerScreen() {
         },
         onPanResponderTerminate: () => setScrub(null),
       }),
-    [trackW, duration, player]
+    [duration, player]
   );
 
   // ---- Swipe gestures ------------------------------------------------------
@@ -324,12 +338,13 @@ export default function PlayerScreen() {
         <View style={styles.bottomBar}>
           <Text style={styles.time}>{fmt(seekFraction * duration)}</Text>
           <View
+            ref={trackRef}
             style={styles.track}
-            onLayout={(e) => setTrackW(e.nativeEvent.layout.width)}
+            onLayout={measureTrack}
             {...seekResponder.panHandlers}>
-            <View style={styles.trackBg} />
-            <View style={[styles.trackFill, { width: `${seekFraction * 100}%` }]} />
-            <View style={[styles.thumb, { left: `${seekFraction * 100}%` }]} />
+            <View pointerEvents="none" style={styles.trackBg} />
+            <View pointerEvents="none" style={[styles.trackFill, { width: `${seekFraction * 100}%` }]} />
+            <View pointerEvents="none" style={[styles.thumb, { left: `${seekFraction * 100}%` }]} />
           </View>
           <Text style={styles.time}>{fmt(duration)}</Text>
         </View>
