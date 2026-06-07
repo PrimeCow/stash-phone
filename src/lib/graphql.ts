@@ -77,9 +77,17 @@ export class StashClient {
       );
     }
 
-    // In proxy mode an unauthenticated request gets 302'd to the SSO login page;
-    // fetch follows it, so we land on a different origin and/or an HTML body.
-    if (proxy && response.url && originOf(response.url) !== originOf(endpoint)) {
+    // In proxy mode an unauthenticated request is rejected by the SSO layer in one
+    // of two ways: a 401/403 (Authelia answers API/JSON requests this way rather
+    // than redirecting), or a 302 to the login page that fetch follows to a
+    // different origin (and/or an HTML body, handled below). Any of these means
+    // "log in", not a hard error.
+    if (
+      proxy &&
+      (response.status === 401 ||
+        response.status === 403 ||
+        (response.url && originOf(response.url) !== originOf(endpoint)))
+    ) {
       throw new AuthRequiredError();
     }
 
