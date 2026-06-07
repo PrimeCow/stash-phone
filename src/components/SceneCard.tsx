@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { OCountBadge } from '@/components/OCountBadge';
 import { useOCount } from '@/config/OCountContext';
+import { withCookie } from '@/lib/session';
 import { authenticatedURL } from '@/lib/stashUrl';
 import type { Scene } from '@/types/stash';
 import { sceneDisplayTitle } from '@/types/stash';
@@ -27,7 +28,7 @@ export function SceneCard({ scene, apiKey, onPress }: Props) {
         {url ? (
           <Image
             style={styles.thumb}
-            source={{ uri: url }}
+            source={withCookie(url)}
             contentFit="cover"
             transition={150}
           />

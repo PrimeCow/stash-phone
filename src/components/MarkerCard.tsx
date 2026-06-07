@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { OCountBadge } from '@/components/OCountBadge';
 import { useOCount } from '@/config/OCountContext';
+import { withCookie } from '@/lib/session';
 import { authenticatedURL } from '@/lib/stashUrl';
 import type { SceneMarker } from '@/types/stash';
 import { markerDisplayTitle, markerSubtitleTags, markerTimecode } from '@/types/stash';
@@ -25,7 +26,7 @@ export function MarkerCard({ marker, apiKey, onPress }: Props) {
       onPress={() => onPress(marker)}>
       <View style={styles.thumbWrap}>
         {url ? (
-          <Image style={styles.thumb} source={{ uri: url }} contentFit="cover" transition={150} />
+          <Image style={styles.thumb} source={withCookie(url)} contentFit="cover" transition={150} />
         ) : (
           <View style={[styles.thumb, styles.thumbPlaceholder]}>
             <Ionicons name="bookmark" size={32} color="#555" />

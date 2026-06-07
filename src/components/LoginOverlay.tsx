@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { WebView, type WebViewNavigation } from 'react-native-webview';
+import { WebView } from 'react-native-webview';
 
 import { useAuthGate } from '@/config/AuthGateContext';
 import { useServerConfig } from '@/config/ServerConfigContext';
@@ -65,7 +65,6 @@ export function LoginOverlay() {
   const { serverURL } = useServerConfig();
 
   const webRef = useRef<WebView>(null);
-  const sawForeignOrigin = useRef(false);
   const [currentURL, setCurrentURL] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -73,19 +72,10 @@ export function LoginOverlay() {
 
   const serverOrigin = serverURL ? originOf(serverURL) : null;
 
-  function onNavChange(nav: WebViewNavigation) {
-    setCurrentURL(nav.url);
-    if (nav.loading) return;
-    const here = originOf(nav.url);
-    if (here && here !== serverOrigin) {
-      // We've been bounced to the SSO host (login page).
-      sawForeignOrigin.current = true;
-    } else if (here === serverOrigin && sawForeignOrigin.current) {
-      // Returned to the Stash origin after authenticating → logged in.
-      completeLogin();
-    }
-  }
-
+  // User-controlled: sign in through the proxy + Stash pages, then tap Done.
+  // The WebView's sharedCookiesEnabled keeps the session cookie available to the
+  // app's native requests. No auto-detect (it false-fired on the intermediate
+  // Stash login page) and no gating.
   function reload() {
     setError(null);
     webRef.current?.reload();
@@ -129,7 +119,7 @@ export function LoginOverlay() {
             ref={webRef}
             source={{ uri: serverURL }}
             originWhitelist={['*']}
-            onNavigationStateChange={onNavChange}
+            onNavigationStateChange={(nav) => setCurrentURL(nav.url)}
             sharedCookiesEnabled
             thirdPartyCookiesEnabled
             domStorageEnabled

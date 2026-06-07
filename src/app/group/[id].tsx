@@ -12,6 +12,7 @@ import { usePlayback } from '@/config/PlaybackContext';
 import { useServerConfig } from '@/config/ServerConfigContext';
 import { AuthRequiredError, makeClient } from '@/lib/graphql';
 import { fetchGroup } from '@/lib/queries';
+import { withCookie } from '@/lib/session';
 import { authenticatedURL } from '@/lib/stashUrl';
 import type { Group, Scene } from '@/types/stash';
 
@@ -85,7 +86,7 @@ export default function GroupDetailScreen() {
     <View style={styles.headerBlock}>
       <View style={styles.headerRow}>
         {headerURL ? (
-          <Image style={styles.cover} source={{ uri: headerURL }} contentFit="cover" />
+          <Image style={styles.cover} source={withCookie(headerURL)} contentFit="cover" />
         ) : (
           <View style={[styles.cover, styles.coverPlaceholder]}>
             <Ionicons name="albums" size={44} color="#555" />

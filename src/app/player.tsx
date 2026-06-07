@@ -16,6 +16,7 @@ import { usePlayback } from '@/config/PlaybackContext';
 import { useServerConfig } from '@/config/ServerConfigContext';
 import { makeClient } from '@/lib/graphql';
 import { incrementSceneO } from '@/lib/queries';
+import { withCookie } from '@/lib/session';
 import { authenticatedURL } from '@/lib/stashUrl';
 import type { Scene } from '@/types/stash';
 
@@ -50,7 +51,7 @@ export default function PlayerScreen() {
   const entriesRef = useRef(entries);
   entriesRef.current = entries;
 
-  const player = useVideoPlayer(entries[0]?.url ?? null, (p) => {
+  const player = useVideoPlayer(entries[0] ? withCookie(entries[0].url) : null, (p) => {
     if (playlist?.startTime && playlist.startTime > 0) p.currentTime = playlist.startTime;
     p.timeUpdateEventInterval = 0.5;
     p.play();
@@ -79,7 +80,7 @@ export default function PlayerScreen() {
       setIndex((prev) => {
         const next = prev + 1;
         if (next < entriesRef.current.length) {
-          player.replace(entriesRef.current[next].url);
+          player.replace(withCookie(entriesRef.current[next].url));
           player.play();
           return next;
         }

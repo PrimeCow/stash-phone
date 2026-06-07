@@ -163,9 +163,11 @@ Set this on the setup screen and in **Settings → Connection**:
   session), the app shows a **Log In** prompt and reloads after you re-authenticate.
   A Stash API key can still be supplied for Stash's own auth behind the proxy.
 
-> Verify-on-device note: cookie sharing to the image/video layers is handled by the
-> platform cookie store (iOS `NSHTTPCookieStorage`, Android `CookieManager`). This is
-> wired up but should be confirmed on a real device against your proxy.
+> How the session reaches native requests: the login WebView uses
+> `sharedCookiesEnabled`, so the OS shares the proxy/Stash session cookie with the
+> app's native requests. You sign in through the login page(s) and tap **Done** to
+> hand back to the app. (If a future setup needs the cookie replayed explicitly on
+> requests, `withCookie()` in `src/lib/session.ts` is the single place to add it.)
 
 ## Networking notes
 

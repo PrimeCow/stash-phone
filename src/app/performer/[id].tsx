@@ -10,6 +10,7 @@ import { SceneCard } from '@/components/SceneCard';
 import { singleScenePlaylist, usePlayback } from '@/config/PlaybackContext';
 import { usePaginatedList } from '@/hooks/usePaginatedList';
 import { fetchScenesForPerformer } from '@/lib/queries';
+import { withCookie } from '@/lib/session';
 import { authenticatedURL } from '@/lib/stashUrl';
 import type { Performer, Scene } from '@/types/stash';
 import { performerAliasesText } from '@/types/stash';
@@ -73,7 +74,7 @@ export default function PerformerDetailScreen() {
     <View style={styles.headerBlock}>
       <View style={styles.headerRow}>
         {imageURL ? (
-          <Image style={styles.portrait} source={{ uri: imageURL }} contentFit="cover" />
+          <Image style={styles.portrait} source={withCookie(imageURL)} contentFit="cover" />
         ) : (
           <View style={[styles.portrait, styles.portraitPlaceholder]}>
             <Ionicons name="person" size={48} color="#555" />

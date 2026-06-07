@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { withCookie } from '@/lib/session';
 import { authenticatedURL } from '@/lib/stashUrl';
 import type { Performer } from '@/types/stash';
 
@@ -21,7 +22,7 @@ export function PerformerCard({ performer, apiKey, onPress }: Props) {
       onPress={() => onPress(performer)}>
       <View style={styles.thumbWrap}>
         {url ? (
-          <Image style={styles.thumb} source={{ uri: url }} contentFit="cover" transition={150} />
+          <Image style={styles.thumb} source={withCookie(url)} contentFit="cover" transition={150} />
         ) : (
           <View style={[styles.thumb, styles.thumbPlaceholder]}>
             <Ionicons name="person" size={48} color="#555" />
