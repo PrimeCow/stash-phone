@@ -5,6 +5,7 @@ import { useAuthGate } from '@/config/AuthGateContext';
 import { useServerConfig, type ConnectionMode } from '@/config/ServerConfigContext';
 import { AuthRequiredError, makeClient } from '@/lib/graphql';
 import { fetchVersion } from '@/lib/queries';
+import { normalizeServerURL } from '@/lib/stashUrl';
 
 type TestState =
   | { kind: 'idle' }
@@ -33,8 +34,8 @@ export function ServerConnectionForm({ submitLabel, onSaved }: Props) {
   const [mode, setMode] = useState<ConnectionMode>(connectionMode);
   const [test, setTest] = useState<TestState>({ kind: 'idle' });
 
-  const normalizedURL = url.trim().replace(/\/+$/, '');
-  const canSubmit = normalizedURL.length > 0 && test.kind !== 'testing';
+  const normalizedURL = normalizeServerURL(url);
+  const canSubmit = normalizedURL != null && test.kind !== 'testing';
 
   function resetTest() {
     setTest({ kind: 'idle' });

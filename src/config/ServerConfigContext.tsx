@@ -8,6 +8,8 @@ import React, {
   useState,
 } from 'react';
 
+import { normalizeServerURL } from '@/lib/stashUrl';
+
 const SERVER_URL_KEY = 'stash.serverURL';
 const API_KEY_ACCOUNT = 'stash.apiKey';
 const CONNECTION_MODE_KEY = 'stash.connectionMode';
@@ -50,7 +52,8 @@ export function ServerConfigProvider({ children }: { children: React.ReactNode }
           AsyncStorage.getItem(CONNECTION_MODE_KEY),
           SecureStore.getItemAsync(API_KEY_ACCOUNT),
         ]);
-        setServerURL(url);
+        // Self-heal any stale/invalid stored value (e.g. a "null" string).
+        setServerURL(normalizeServerURL(url));
         setConnectionMode(mode === 'proxy' ? 'proxy' : 'direct');
         setApiKey(key);
       } finally {
@@ -61,7 +64,7 @@ export function ServerConfigProvider({ children }: { children: React.ReactNode }
 
   const setConfig = React.useCallback(
     async (url: string | null, key: string | null, mode: ConnectionMode) => {
-      const normalizedURL = url?.trim().replace(/\/+$/, '') || null;
+      const normalizedURL = normalizeServerURL(url);
       const normalizedKey = key?.trim() || null;
 
       if (normalizedURL) await AsyncStorage.setItem(SERVER_URL_KEY, normalizedURL);
