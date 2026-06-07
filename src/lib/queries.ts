@@ -1,6 +1,6 @@
 // GraphQL operations + typed wrappers, ported from the tvOS Queries/.
 
-import type { Scene, SavedFilter, SceneMarker } from '@/types/stash';
+import type { Performer, Scene, SavedFilter, SceneMarker } from '@/types/stash';
 import { StashClient } from './graphql';
 
 const SCENE_FIELDS = `
@@ -162,4 +162,61 @@ export async function fetchSceneMarkers(
     variables
   );
   return data.findSceneMarkers;
+}
+
+// performers -----------------------------------------------------------------
+
+const FIND_PERFORMERS_QUERY = `
+query FindPerformers($filter: FindFilterType) {
+  findPerformers(filter: $filter) {
+    count
+    performers {
+      id
+      name
+      alias_list
+      gender
+      country
+      birthdate
+      image_path
+      scene_count
+    }
+  }
+}`;
+
+export interface FindPerformersResult {
+  count: number;
+  performers: Performer[];
+}
+
+export async function fetchPerformers(
+  client: StashClient,
+  page: number,
+  perPage: number,
+  sort = 'name',
+  direction = 'ASC'
+): Promise<FindPerformersResult> {
+  const data = await client.execute<{ findPerformers: FindPerformersResult }>(
+    'FindPerformers',
+    FIND_PERFORMERS_QUERY,
+    { filter: { page, per_page: perPage, sort, direction } }
+  );
+  return data.findPerformers;
+}
+
+/** Scenes featuring a given performer (sorted newest first), for detail screens. */
+export async function fetchScenesForPerformer(
+  client: StashClient,
+  performerID: string,
+  page: number,
+  perPage: number
+): Promise<FindScenesResult> {
+  return fetchScenes(client, {
+    page,
+    perPage,
+    sort: 'date',
+    direction: 'DESC',
+    sceneFilter: {
+      performers: { value: [performerID], modifier: 'INCLUDES' },
+    },
+  });
 }

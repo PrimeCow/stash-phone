@@ -23,6 +23,7 @@ export default function RootLayout() {
                 <Stack.Screen name="index" />
                 <Stack.Screen name="setup" />
                 <Stack.Screen name="(tabs)" />
+                <Stack.Screen name="performer/[id]" />
                 <Stack.Screen
                   name="player"
                   options={{ presentation: 'fullScreenModal', animation: 'fade' }}
