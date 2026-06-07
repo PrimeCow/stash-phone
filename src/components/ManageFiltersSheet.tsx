@@ -11,7 +11,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useModeFilterPrefs, type BrowseMode } from '@/config/FilterPrefsContext';
-import { useServerConfig } from '@/config/ServerConfigContext';
 import type { SavedFilter } from '@/types/stash';
 
 interface Props {
@@ -23,7 +22,6 @@ interface Props {
 
 export function ManageFiltersSheet({ visible, onClose, mode, savedFilters }: Props) {
   const prefs = useModeFilterPrefs(mode);
-  const config = useServerConfig();
   const recentLabel = mode === 'markers' ? 'Recent Markers' : 'Recent Scenes';
   const recentSub = mode === 'markers' ? 'Newest markers, no filter' : 'Newest scenes, no filter';
 
@@ -60,11 +58,6 @@ export function ManageFiltersSheet({ visible, onClose, mode, savedFilters }: Pro
               No saved filters found on this server. Create them in the Stash web UI.
             </Text>
           )}
-
-          <Pressable style={styles.signOut} onPress={config.signOut}>
-            <Ionicons name="log-out-outline" size={18} color="#f85149" />
-            <Text style={styles.signOutText}>Sign Out</Text>
-          </Pressable>
         </ScrollView>
       </SafeAreaView>
     </Modal>
@@ -130,12 +123,4 @@ const styles = StyleSheet.create({
   rowLabel: { color: '#fff', fontSize: 16 },
   rowSub: { color: '#8a8f94', fontSize: 13, marginTop: 2 },
   empty: { color: '#8a8f94', fontSize: 14, marginTop: 16, lineHeight: 20 },
-  signOut: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 40,
-    paddingVertical: 12,
-  },
-  signOutText: { color: '#f85149', fontSize: 16, fontWeight: '600' },
 });

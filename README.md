@@ -23,7 +23,9 @@ the GraphQL client, models, and saved-filter logic are ported across.
   list of their scenes, and a "Play All" queue.
 - **Groups** — portrait grid; opening a group shows its cover/synopsis and scenes,
   with "Play All" and per-scene playback that auto-advances through the group.
-- **Manage Filters** — per-tab toggle of which saved filters appear as chips; sign out.
+- **Manage Filters** — per-tab toggle of which saved filters appear as chips.
+- **Settings** — a dedicated tab to edit the server URL / API key (with the same
+  live connection test) after onboarding, plus Sign Out and the app version.
 - **Player** — HLS playback (`expo-video`) with the API key folded into the stream
   URL, native controls, picture-in-picture, and playlist auto-advance.
 
@@ -152,13 +154,14 @@ src/
 │   ├── _layout.tsx           providers (lock, config, prefs, playback) + Stack + LockOverlay
 │   ├── index.tsx             gate: redirects to /setup or /(tabs)
 │   ├── setup.tsx             server URL / API key onboarding + connection test
-│   ├── (tabs)/               Scenes / Markers / Performers / Groups tabs
+│   ├── (tabs)/               Scenes / Markers / Performers / Groups / Settings tabs
 │   ├── performer/[id].tsx    performer detail: info + scenes + Play All
 │   ├── group/[id].tsx        group detail: cover/synopsis + scenes + Play All
 │   └── player.tsx            full-screen HLS player (modal)
 ├── components/               cards (Scene/Marker/Performer/Group), grids
 │   │                         (FilteredBrowse, PaginatedGrid), FilterChipBar,
-│   │                         ManageFiltersSheet, PinPad, LockOverlay
+│   │                         ManageFiltersSheet, ServerConnectionForm,
+│   │                         PinPad, LockOverlay
 ├── config/                   React contexts:
 │   ├── AppLockContext        PIN lock state (SecureStore + AppState re-lock)
 │   ├── ServerConfigContext   server URL + API key (SecureStore / AsyncStorage)
