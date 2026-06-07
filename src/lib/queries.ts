@@ -1,0 +1,108 @@
+// GraphQL operations + typed wrappers, ported from the tvOS Queries/.
+
+import type { Scene, SavedFilter } from '@/types/stash';
+import { StashClient } from './graphql';
+
+const SCENE_FIELDS = `
+  id
+  title
+  details
+  date
+  rating100
+  paths { screenshot preview stream }
+  files { basename duration width height }
+  studio { id name image_path }
+  performers { id name image_path }
+  tags { id name }
+`;
+
+// version --------------------------------------------------------------------
+
+const VERSION_QUERY = `
+query Version {
+  version { version build_time hash }
+}`;
+
+export interface VersionInfo {
+  version: string;
+  build_time?: string | null;
+  hash?: string | null;
+}
+
+export async function fetchVersion(client: StashClient): Promise<VersionInfo> {
+  const data = await client.execute<{ version: VersionInfo }>('Version', VERSION_QUERY);
+  return data.version;
+}
+
+// saved filters --------------------------------------------------------------
+
+const FIND_SAVED_FILTERS_QUERY = `
+query FindSavedFilters($mode: FilterMode) {
+  findSavedFilters(mode: $mode) {
+    id
+    mode
+    name
+    find_filter { q sort direction per_page }
+    object_filter
+  }
+}`;
+
+export async function fetchSavedFilters(
+  client: StashClient,
+  mode: string
+): Promise<SavedFilter[]> {
+  const data = await client.execute<{ findSavedFilters: SavedFilter[] }>(
+    'FindSavedFilters',
+    FIND_SAVED_FILTERS_QUERY,
+    { mode }
+  );
+  return [...data.findSavedFilters].sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+  );
+}
+
+// scenes ---------------------------------------------------------------------
+
+const FIND_SCENES_QUERY = `
+query FindScenes($filter: FindFilterType, $scene_filter: SceneFilterType) {
+  findScenes(filter: $filter, scene_filter: $scene_filter) {
+    count
+    scenes {${SCENE_FIELDS}}
+  }
+}`;
+
+export interface FindScenesArgs {
+  page?: number;
+  perPage?: number;
+  sort?: string;
+  direction?: string;
+  sceneFilter?: unknown;
+}
+
+export interface FindScenesResult {
+  count: number;
+  scenes: Scene[];
+}
+
+export async function fetchScenes(
+  client: StashClient,
+  args: FindScenesArgs
+): Promise<FindScenesResult> {
+  const variables: Record<string, unknown> = {
+    filter: {
+      page: args.page ?? 1,
+      per_page: args.perPage ?? 40,
+      sort: args.sort ?? 'date',
+      direction: args.direction ?? 'DESC',
+    },
+  };
+  if (args.sceneFilter != null) {
+    variables.scene_filter = args.sceneFilter;
+  }
+  const data = await client.execute<{ findScenes: FindScenesResult }>(
+    'FindScenes',
+    FIND_SCENES_QUERY,
+    variables
+  );
+  return data.findScenes;
+}
