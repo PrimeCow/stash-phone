@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { OCountBadge } from '@/components/OCountBadge';
 import { authenticatedURL } from '@/lib/stashUrl';
 import type { Scene } from '@/types/stash';
 import { sceneDisplayTitle } from '@/types/stash';
@@ -36,6 +37,7 @@ export function SceneCard({ scene, apiKey, onPress }: Props) {
         <View style={styles.playBadge}>
           <Ionicons name="play" size={14} color="#fff" />
         </View>
+        <OCountBadge count={scene.o_counter} style={styles.oCount} />
       </View>
       <Text style={styles.title} numberOfLines={1}>
         {sceneDisplayTitle(scene)}
@@ -60,6 +62,7 @@ const styles = StyleSheet.create({
   },
   thumb: { width: '100%', height: '100%' },
   thumbPlaceholder: { alignItems: 'center', justifyContent: 'center' },
+  oCount: { position: 'absolute', top: 6, left: 6 },
   playBadge: {
     position: 'absolute',
     bottom: 6,

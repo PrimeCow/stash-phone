@@ -41,6 +41,7 @@ export interface Scene {
   details?: string | null;
   date?: string | null;
   rating100?: number | null;
+  o_counter?: number | null;
   paths: ScenePaths;
   files: SceneFile[];
   studio?: Studio | null;

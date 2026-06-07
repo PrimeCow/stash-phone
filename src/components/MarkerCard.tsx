@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { OCountBadge } from '@/components/OCountBadge';
 import { authenticatedURL } from '@/lib/stashUrl';
 import type { SceneMarker } from '@/types/stash';
 import { markerDisplayTitle, markerSubtitleTags, markerTimecode } from '@/types/stash';
@@ -31,6 +32,7 @@ export function MarkerCard({ marker, apiKey, onPress }: Props) {
         <View style={styles.timecode}>
           <Text style={styles.timecodeText}>{markerTimecode(marker)}</Text>
         </View>
+        <OCountBadge count={marker.scene.o_counter} style={styles.oCount} />
       </View>
       <Text style={styles.title} numberOfLines={1}>
         {markerDisplayTitle(marker)}
@@ -55,6 +57,7 @@ const styles = StyleSheet.create({
   },
   thumb: { width: '100%', height: '100%' },
   thumbPlaceholder: { alignItems: 'center', justifyContent: 'center' },
+  oCount: { position: 'absolute', top: 6, left: 6 },
   timecode: {
     position: 'absolute',
     bottom: 6,

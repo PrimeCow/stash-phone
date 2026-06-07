@@ -9,6 +9,7 @@ const SCENE_FIELDS = `
   details
   date
   rating100
+  o_counter
   paths { screenshot preview stream }
   files { basename duration width height }
   studio { id name image_path }
@@ -105,6 +106,41 @@ export async function fetchScenes(
     variables
   );
   return data.findScenes;
+}
+
+// o-counter ------------------------------------------------------------------
+
+const SCENE_ADD_O = `
+mutation SceneAddO($id: ID!) {
+  sceneAddO(id: $id) { count }
+}`;
+
+const SCENE_INCREMENT_O = `
+mutation SceneIncrementO($id: ID!) {
+  sceneIncrementO(id: $id)
+}`;
+
+/**
+ * Increment a scene's o-counter and return the new total. Uses the current
+ * `sceneAddO` mutation, falling back to the legacy `sceneIncrementO` for older
+ * Stash servers (so the app works across self-hosted versions).
+ */
+export async function incrementSceneO(client: StashClient, id: string): Promise<number> {
+  try {
+    const data = await client.execute<{ sceneAddO: { count: number } }>(
+      'SceneAddO',
+      SCENE_ADD_O,
+      { id }
+    );
+    return data.sceneAddO.count;
+  } catch {
+    const data = await client.execute<{ sceneIncrementO: number }>(
+      'SceneIncrementO',
+      SCENE_INCREMENT_O,
+      { id }
+    );
+    return data.sceneIncrementO;
+  }
 }
 
 // scene markers --------------------------------------------------------------

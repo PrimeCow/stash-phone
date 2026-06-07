@@ -32,7 +32,12 @@ the GraphQL client, models, and saved-filter logic are ported across.
 - **Settings** — a dedicated tab to edit the server URL / API key (with the same
   live connection test) after onboarding, plus Sign Out and the app version.
 - **Player** — HLS playback (`expo-video`) with the API key folded into the stream
-  URL, native controls, picture-in-picture, and playlist auto-advance.
+  URL, custom auto-hiding controls (tap to reveal, play/pause, ±10s, scrub), and
+  playlist auto-advance.
+- **O-counter** — an increment button in the player (auto-hides with the controls,
+  optimistic update via the `sceneAddO` mutation, falls back to `sceneIncrementO`
+  on older servers) and an o-count badge on scene/marker cards, shown only when the
+  count is greater than zero.
 
 ## Requirements
 
