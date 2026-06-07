@@ -6,7 +6,11 @@ import { sceneDisplayTitle } from '@/types/stash';
 export interface ScenePlaylist {
   scenes: Scene[];
   startIndex: number;
-  startTime?: number;
+  /**
+   * Optional per-scene start offset in seconds, aligned to `scenes`. Used when
+   * playing a marker list so each scene resumes at its marker's timestamp.
+   */
+  offsets?: number[];
   title?: string;
 }
 
@@ -14,7 +18,7 @@ export function singleScenePlaylist(scene: Scene, startTime?: number): ScenePlay
   return {
     scenes: [scene],
     startIndex: 0,
-    startTime,
+    offsets: startTime != null ? [startTime] : undefined,
     title: sceneDisplayTitle(scene),
   };
 }

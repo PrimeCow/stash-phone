@@ -38,21 +38,35 @@ export default function PlayerScreen() {
   const { playlist } = usePlayback();
   const server = useServerConfig();
 
-  // Pair each playable stream with its scene so the o-counter stays aligned.
+  // Pair each playable stream with its scene (and optional marker start offset)
+  // so the o-counter stays aligned and each entry resumes at the right time.
   const entries = useMemo(() => {
-    if (!playlist) return [] as { scene: Scene; url: string }[];
+    if (!playlist) return [] as { scene: Scene; url: string; offset?: number }[];
     return playlist.scenes
+      .map((scene, i) => ({
+        scene,
+        url: authenticatedURL(scene.paths.stream, server.apiKey),
+        offset: playlist.offsets?.[i],
+      }))
       .slice(playlist.startIndex)
-      .map((scene) => ({ scene, url: authenticatedURL(scene.paths.stream, server.apiKey) }))
-      .filter((e): e is { scene: Scene; url: string } => e.url != null);
+      .filter(
+        (e): e is { scene: Scene; url: string; offset: number | undefined } => e.url != null
+      );
   }, [playlist, server.apiKey]);
 
   const [index, setIndex] = useState(0);
   const entriesRef = useRef(entries);
   entriesRef.current = entries;
 
+  // A seek to apply once the next source has buffered (offsets land here so
+  // marker entries resume at their timestamp after a player.replace), plus a
+  // flag to start playback once that swapped source is ready.
+  const pendingSeek = useRef<number | null>(null);
+  const pendingPlay = useRef(false);
+
   const player = useVideoPlayer(entries[0] ? withCookie(entries[0].url) : null, (p) => {
-    if (playlist?.startTime && playlist.startTime > 0) p.currentTime = playlist.startTime;
+    const t = entries[0]?.offset;
+    if (t && t > 0) p.currentTime = t;
     p.timeUpdateEventInterval = 0.5;
     p.play();
   });
@@ -89,17 +103,36 @@ export default function PlayerScreen() {
       setIndex((prev) => {
         const next = prev + 1;
         if (next < entriesRef.current.length) {
-          player.replace(withCookie(entriesRef.current[next].url));
-          player.play();
+          const entry = entriesRef.current[next];
+          pendingSeek.current = entry.offset && entry.offset > 0 ? entry.offset : null;
+          // Defer the seek/play until the swapped source is ready — calling
+          // play() immediately after replace() is dropped while it buffers, so
+          // the next video would load but sit paused.
+          pendingPlay.current = true;
+          player.replace(withCookie(entry.url));
           return next;
         }
         return prev;
       });
     });
+    // Once a freshly-swapped source is ready, apply any queued offset and start
+    // it playing (auto-advance).
+    const subStatus = player.addListener('statusChange', (e) => {
+      if (e.status !== 'readyToPlay') return;
+      if (pendingSeek.current != null) {
+        player.currentTime = pendingSeek.current;
+        pendingSeek.current = null;
+      }
+      if (pendingPlay.current) {
+        pendingPlay.current = false;
+        player.play();
+      }
+    });
     return () => {
       subPlay.remove();
       subTime.remove();
       subEnd.remove();
+      subStatus.remove();
     };
   }, [player]);
 

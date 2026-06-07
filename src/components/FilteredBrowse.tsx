@@ -18,7 +18,11 @@ interface FilteredBrowseProps<T> {
   numColumns: number;
   fetchPage: (client: StashClient, args: PageArgs) => Promise<{ count: number; items: T[] }>;
   getId: (item: T) => string;
-  renderCard: (item: T, apiKey: string | null) => React.ReactElement;
+  renderCard: (
+    item: T,
+    apiKey: string | null,
+    ctx: { items: T[]; index: number }
+  ) => React.ReactElement;
   emptyText: string;
 }
 
@@ -89,7 +93,11 @@ export function FilteredBrowse<T>(props: FilteredBrowseProps<T>) {
           keyExtractor={props.getId}
           numColumns={props.numColumns}
           contentContainerStyle={styles.gridContent}
-          renderItem={({ item }) => <View style={styles.cell}>{props.renderCard(item, b.apiKey)}</View>}
+          renderItem={({ item, index }) => (
+            <View style={styles.cell}>
+              {props.renderCard(item, b.apiKey, { items: b.items, index })}
+            </View>
+          )}
           onEndReached={b.onEndReached}
           onEndReachedThreshold={0.5}
           refreshControl={

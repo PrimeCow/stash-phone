@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PaginatedGrid } from '@/components/PaginatedGrid';
 import { SceneCard } from '@/components/SceneCard';
-import { singleScenePlaylist, usePlayback } from '@/config/PlaybackContext';
+import { usePlayback } from '@/config/PlaybackContext';
 import { usePaginatedList } from '@/hooks/usePaginatedList';
 import { fetchScenesForPerformer } from '@/lib/queries';
 import { withCookie } from '@/lib/session';
@@ -50,10 +50,11 @@ export default function PerformerDetailScreen() {
 
   const playScene = useCallback(
     (scene: Scene) => {
-      setPlaylist(singleScenePlaylist(scene));
+      const startIndex = Math.max(0, list.items.findIndex((s) => s.id === scene.id));
+      setPlaylist({ scenes: list.items, startIndex, title: performer?.name });
       router.push('/player');
     },
-    [router, setPlaylist]
+    [list.items, performer, router, setPlaylist]
   );
 
   const playAll = useCallback(() => {

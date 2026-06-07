@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 
 import { FilteredBrowse } from '@/components/FilteredBrowse';
 import { SceneCard } from '@/components/SceneCard';
-import { singleScenePlaylist, usePlayback } from '@/config/PlaybackContext';
+import { usePlayback } from '@/config/PlaybackContext';
 import { fetchScenes } from '@/lib/queries';
 import type { Scene } from '@/types/stash';
 
@@ -28,12 +28,12 @@ export default function ScenesScreen() {
         });
         return { count: result.count, items: result.scenes };
       }}
-      renderCard={(scene, apiKey) => (
+      renderCard={(scene, apiKey, ctx) => (
         <SceneCard
           scene={scene}
           apiKey={apiKey}
-          onPress={(s) => {
-            setPlaylist(singleScenePlaylist(s));
+          onPress={() => {
+            setPlaylist({ scenes: ctx.items, startIndex: ctx.index, title: 'Scenes' });
             router.push('/player');
           }}
         />

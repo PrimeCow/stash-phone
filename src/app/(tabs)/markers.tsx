@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 
 import { FilteredBrowse } from '@/components/FilteredBrowse';
 import { MarkerCard } from '@/components/MarkerCard';
-import { singleScenePlaylist, usePlayback } from '@/config/PlaybackContext';
+import { usePlayback } from '@/config/PlaybackContext';
 import { fetchSceneMarkers } from '@/lib/queries';
 import type { SceneMarker } from '@/types/stash';
 
@@ -28,12 +28,17 @@ export default function MarkersScreen() {
         });
         return { count: result.count, items: result.scene_markers };
       }}
-      renderCard={(marker, apiKey) => (
+      renderCard={(marker, apiKey, ctx) => (
         <MarkerCard
           marker={marker}
           apiKey={apiKey}
-          onPress={(m) => {
-            setPlaylist(singleScenePlaylist(m.scene, m.seconds));
+          onPress={() => {
+            setPlaylist({
+              scenes: ctx.items.map((m) => m.scene),
+              offsets: ctx.items.map((m) => m.seconds),
+              startIndex: ctx.index,
+              title: 'Markers',
+            });
             router.push('/player');
           }}
         />
