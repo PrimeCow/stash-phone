@@ -69,18 +69,28 @@ export class StashClient {
 
     const proxy = this.config.connectionMode === 'proxy';
 
+    // Fail fast instead of spinning forever when there's no connection (e.g. wifi
+    // off): abort the request after a timeout so the UI shows an error + Retry.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 12000);
     let response: Response;
     try {
       response = await fetch(endpoint, {
         method: 'POST',
         headers,
         body: JSON.stringify({ operationName, query, variables }),
+        signal: controller.signal,
       });
     } catch (err) {
+      const aborted = err instanceof Error && err.name === 'AbortError';
       throw new StashError(
-        `Could not reach the server. Check the URL and that Stash is running.`,
+        aborted
+          ? 'The server took too long to respond — check your connection.'
+          : 'Could not reach the server. Check the URL and that Stash is running.',
         err
       );
+    } finally {
+      clearTimeout(timer);
     }
 
     // In proxy mode an unauthenticated request is rejected by the SSO layer: a
