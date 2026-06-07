@@ -57,6 +57,7 @@ export function useFilteredBrowse<T>(config: Config<T>) {
   const [errorMessage, setErrorMessage] = useState('');
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [authBlocked, setAuthBlocked] = useState(false);
 
   const loadToken = useRef(0);
   const currentPage = useRef(0);
@@ -110,7 +111,7 @@ export function useFilteredBrowse<T>(config: Config<T>) {
       } catch (err) {
         if (token !== loadToken.current) return;
         if (err instanceof AuthRequiredError) {
-          if (isInitial) setStatus('authRequired');
+          setAuthBlocked(true);
           promptLogin();
           return;
         }
@@ -148,13 +149,24 @@ export function useFilteredBrowse<T>(config: Config<T>) {
         const filters = await fetchSavedFilters(client, MODE_INFO[mode].stashFilterMode);
         if (!cancelled) setSavedFilters(filters);
       } catch (err) {
-        console.warn(`[${mode}] saved filters failed:`, err);
+        if (cancelled) return;
+        if (err instanceof AuthRequiredError) {
+          setAuthBlocked(true);
+          promptLogin();
+        } else {
+          console.warn(`[${mode}] saved filters failed:`, err);
+        }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [server, mode, authEpoch]);
+  }, [server, mode, authEpoch, promptLogin]);
+
+  // Clear the auth block after a successful login so data reloads.
+  useEffect(() => {
+    setAuthBlocked(false);
+  }, [authEpoch]);
 
   // Keep the active chip selection valid as chips change.
   useEffect(() => {
@@ -197,7 +209,7 @@ export function useFilteredBrowse<T>(config: Config<T>) {
     setActiveFilterID: prefs.setActiveFilterID,
     items,
     totalCount,
-    status,
+    status: authBlocked ? ('authRequired' as BrowseStatus) : status,
     errorMessage,
     isLoadingMore,
     refreshing,
