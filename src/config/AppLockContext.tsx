@@ -17,6 +17,11 @@ export type LockStatus = 'loading' | 'needsSetup' | 'locked' | 'unlocked';
 
 interface AppLockContextValue {
   status: LockStatus;
+  // True whenever the app is not in the active foreground (inactive or
+  // background). Used to drop an opaque cover so iOS captures *that* — not the
+  // real content — for the app-switcher snapshot, which it grabs during the
+  // brief `inactive` transition before `background` fires.
+  obscured: boolean;
   lastError: string | null;
   setupPIN: (pin: string) => Promise<void>;
   verify: (pin: string) => Promise<boolean>;
@@ -30,6 +35,7 @@ function isValidPIN(pin: string): boolean {
 
 export function AppLockProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<LockStatus>('loading');
+  const [obscured, setObscured] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
   const statusRef = useRef<LockStatus>('loading');
   statusRef.current = status;
@@ -44,6 +50,9 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
   // Re-lock whenever the app leaves the foreground (matches the tvOS app).
   useEffect(() => {
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
+      // Cover the screen the moment we lose the foreground so the app-switcher
+      // snapshot (taken at `inactive`) doesn't capture real content.
+      setObscured(next !== 'active');
       if (next === 'background' && statusRef.current === 'unlocked') {
         setStatus('locked');
       }
@@ -70,8 +79,8 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo<AppLockContextValue>(
-    () => ({ status, lastError, setupPIN, verify }),
-    [status, lastError, setupPIN, verify]
+    () => ({ status, obscured, lastError, setupPIN, verify }),
+    [status, obscured, lastError, setupPIN, verify]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

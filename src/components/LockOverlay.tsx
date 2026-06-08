@@ -11,8 +11,13 @@ import { useAppLock } from '@/config/AppLockContext';
  * (mirrors the tvOS RootView's PIN gate).
  */
 export function LockOverlay() {
-  const { status } = useAppLock();
-  if (status === 'unlocked' || status === 'loading') return null;
+  const { status, obscured } = useAppLock();
+  if (status === 'loading') return null;
+  // While unlocked, only show an opaque cover during the background transition
+  // so iOS snapshots a blank screen for the app switcher — no PIN pad needed.
+  if (status === 'unlocked') {
+    return obscured ? <View style={styles.overlay} /> : null;
+  }
   return (
     <View style={styles.overlay}>
       {status === 'needsSetup' ? <SetupView /> : <EntryView />}
