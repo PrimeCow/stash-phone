@@ -10,7 +10,8 @@ the GraphQL client, models, and saved-filter logic are ported across.
 **Feature parity with stash-tv.** Working today:
 
 - **PIN app lock** — a 4-digit PIN (stored in `expo-secure-store`) is required on
-  cold launch and on every return from the background. Set once on first run.
+  cold launch and on every return from the background — including when the app is
+  backgrounded mid-playback (the lock renders over the player). Set once on first run.
 - **Server setup** — enter your Stash URL + optional API key, with a live connection
   test against the `version` query. Credentials persist (API key in the secure
   keychain via `expo-secure-store`, URL in `AsyncStorage`).
@@ -23,7 +24,8 @@ the GraphQL client, models, and saved-filter logic are ported across.
   Scenes" view), shown in an infinite-scroll grid with pull-to-refresh.
   Random-sort filters re-seed on refresh so a refresh actually re-shuffles.
 - **Markers** — saved-filter chips + "Recent Markers" grid; tapping a marker plays
-  its scene starting at the marker's timecode.
+  its scene starting at the marker's timecode, and auto-advances through the rest of
+  the filtered markers.
 - **Performers** — portrait grid; opening a performer shows their info, a paginated
   list of their scenes, and a "Play All" queue.
 - **Groups** — portrait grid; opening a group shows its cover/synopsis and scenes,
@@ -32,12 +34,20 @@ the GraphQL client, models, and saved-filter logic are ported across.
 - **Settings** — a dedicated tab to edit the server URL / API key (with the same
   live connection test) after onboarding, plus Sign Out and the app version.
 - **Player** — HLS playback (`expo-video`) with the API key folded into the stream
-  URL, custom auto-hiding controls (tap to reveal, play/pause, ±10s, scrub), and
-  playlist auto-advance.
+  URL and custom auto-hiding controls (tap to reveal, play/pause, ±10s, scrub). The
+  whole browse list (Scenes filter, Markers filter, or a performer's scenes) is loaded
+  as a playlist with a position counter; it **auto-advances** when a video ends and
+  carries the per-marker start offsets through.
+  - **Swipe gestures** — swipe **down** to close, **up** to close and bump the
+    o-count, **left** to play the next video (as if it finished), **right** to play
+    the previous one.
+  - **Performers & Markers panels** — bottom-sheet buttons (hidden while the controls
+    are hidden) to view the current scene's performers and jump to one, or list the
+    scene's markers and tap to seek the video to that point.
 - **O-counter** — an increment button in the player (auto-hides with the controls,
-  optimistic update via the `sceneAddO` mutation, falls back to `sceneIncrementO`
-  on older servers) and an o-count badge on scene/marker cards, shown only when the
-  count is greater than zero.
+  also triggered by the swipe-up gesture; optimistic update via the `sceneAddO`
+  mutation, falls back to `sceneIncrementO` on older servers) and an o-count badge on
+  scene/marker cards, shown only when the count is greater than zero.
 
 ## Requirements
 
@@ -192,7 +202,9 @@ src/
 │   ├── (tabs)/               Scenes / Markers / Performers / Groups / Settings tabs
 │   ├── performer/[id].tsx    performer detail: info + scenes + Play All
 │   ├── group/[id].tsx        group detail: cover/synopsis + scenes + Play All
-│   └── player.tsx            full-screen HLS player (modal)
+│   └── player.tsx            full-screen HLS player (in-stack card, so the PIN
+│                             lock can cover it): controls, swipe gestures,
+│                             auto-advance, performers/markers panels
 ├── components/               cards (Scene/Marker/Performer/Group), grids
 │   │                         (FilteredBrowse, PaginatedGrid), FilterChipBar,
 │   │                         ManageFiltersSheet, ServerConnectionForm,
@@ -208,7 +220,8 @@ src/
 │   └── usePaginatedList.ts   plain pagination (Performers, Groups, detail lists)
 ├── lib/
 │   ├── graphql.ts            fetch-based Stash GraphQL client (ApiKey header)
-│   ├── queries.ts            Find{Scenes,SceneMarkers,Performers,Groups,Group,…}
+│   ├── queries.ts            Find{Scenes,SceneMarkers,Performers,Groups,Group,…},
+│   │                         per-scene markers + sceneAddO o-count mutation
 │   ├── stashUrl.ts           folds the API key into media/stream URLs
 │   └── normalizeFilter.ts    object_filter → SceneFilterType input shape
 └── types/stash.ts            domain types + display helpers
