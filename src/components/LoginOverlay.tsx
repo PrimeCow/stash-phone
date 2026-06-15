@@ -16,6 +16,35 @@ function originOf(url: string): string | null {
   }
 }
 
+// iOS auto-capitalizes the first letter of text inputs, which corrupts the
+// Authelia username (and fails the login). The WebView has no autoCapitalize
+// prop, so force the HTML attributes off on every non-password input. Authelia
+// is a React SPA that renders the form after load, so we apply this three ways:
+// at document-start (below, before content), on every DOM mutation, and again
+// the instant a field is focused — so the attribute is in place before the
+// keyboard appears no matter when the input renders.
+const FIX_INPUT_CAPITALIZATION = `
+(function () {
+  var fixEl = function (el) {
+    if (!el || el.tagName !== 'INPUT') return;
+    if ((el.getAttribute('type') || 'text').toLowerCase() === 'password') return;
+    el.setAttribute('autocapitalize', 'none');
+    el.setAttribute('autocorrect', 'off');
+    el.setAttribute('spellcheck', 'false');
+  };
+  var fixAll = function () {
+    var inputs = document.querySelectorAll('input');
+    for (var i = 0; i < inputs.length; i++) fixEl(inputs[i]);
+  };
+  fixAll();
+  document.addEventListener('focusin', function (e) { fixEl(e.target); }, true);
+  try {
+    new MutationObserver(fixAll).observe(document.documentElement, { childList: true, subtree: true });
+  } catch (e) {}
+})();
+true;
+`;
+
 /**
  * Full-screen web login for proxy mode. Loads the Stash URL inside a WebView with
  * the system cookie jar enabled; the reverse proxy (Authelia, etc.) redirects to
@@ -63,6 +92,8 @@ export function LoginOverlay() {
         <WebView
           source={{ uri: serverURL }}
           onNavigationStateChange={(nav) => setCurrentURL(nav.url)}
+          injectedJavaScriptBeforeContentLoaded={FIX_INPUT_CAPITALIZATION}
+          injectedJavaScript={FIX_INPUT_CAPITALIZATION}
           sharedCookiesEnabled
           thirdPartyCookiesEnabled
           domStorageEnabled

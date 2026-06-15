@@ -148,13 +148,21 @@ export function useFilteredBrowse<T>(config: Config<T>) {
         const filters = await fetchSavedFilters(client, MODE_INFO[mode].stashFilterMode);
         if (!cancelled) setSavedFilters(filters);
       } catch (err) {
+        if (cancelled) return;
+        // An auth failure here would otherwise leave an empty catalog that looks
+        // like "no filters enabled" — surface the login prompt instead.
+        if (err instanceof AuthRequiredError) {
+          setStatus('authRequired');
+          promptLogin();
+          return;
+        }
         console.warn(`[${mode}] saved filters failed:`, err);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [server, mode, authEpoch]);
+  }, [server, mode, authEpoch, promptLogin]);
 
   // Keep the active chip selection valid as chips change.
   useEffect(() => {

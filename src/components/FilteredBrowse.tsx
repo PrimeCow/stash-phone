@@ -78,7 +78,12 @@ export function FilteredBrowse<T>(props: FilteredBrowseProps<T>) {
         </View>
       ) : b.chips.length === 0 ? (
         <View style={styles.center}>
-          <Text style={styles.dim}>No filters enabled.</Text>
+          <Ionicons name="options-outline" size={40} color="#8a8f94" />
+          <Text style={styles.emptyTitle}>No filters enabled</Text>
+          <Text style={styles.dim}>
+            Enable at least one saved filter{props.mode === 'scenes' ? ' or “Recent Scenes”' : ''} to
+            see your {props.mode === 'markers' ? 'markers' : 'scenes'} here.
+          </Text>
           <Pressable style={styles.retryBtn} onPress={() => setShowManage(true)}>
             <Text style={styles.retryText}>Manage Filters</Text>
           </Pressable>
@@ -152,6 +157,7 @@ const styles = StyleSheet.create({
   cell: { flex: 1, padding: 4 },
   countText: { color: '#8a8f94', fontSize: 13, paddingHorizontal: 4, paddingVertical: 8 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16, padding: 32 },
+  emptyTitle: { color: '#fff', fontSize: 18, fontWeight: '700', textAlign: 'center' },
   dim: { color: '#8a8f94', fontSize: 15, textAlign: 'center' },
   error: { color: '#f85149', fontSize: 14, textAlign: 'center' },
   retryBtn: { backgroundColor: '#e0245e', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10 },
