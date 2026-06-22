@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ChangePinModal } from '@/components/ChangePinModal';
 import { ServerConnectionForm } from '@/components/ServerConnectionForm';
 import { useServerConfig } from '@/config/ServerConfigContext';
 
@@ -21,6 +22,8 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { signOut } = useServerConfig();
   const [savedAt, setSavedAt] = useState(0);
+  const [showChangePin, setShowChangePin] = useState(false);
+  const [pinChanged, setPinChanged] = useState(false);
 
   function confirmSignOut() {
     Alert.alert(
@@ -52,6 +55,19 @@ export default function SettingsScreen() {
           <ServerConnectionForm submitLabel="Save Changes" onSaved={() => setSavedAt(Date.now())} />
           {savedAt > 0 && <Text style={styles.saved}>✓ Saved</Text>}
 
+          <Text style={[styles.sectionTitle, styles.sectionSpacer]}>Security</Text>
+          <Pressable
+            style={styles.row}
+            onPress={() => {
+              setPinChanged(false);
+              setShowChangePin(true);
+            }}>
+            <Ionicons name="key-outline" size={20} color="#fff" />
+            <Text style={styles.rowLabel}>Change PIN</Text>
+            <Ionicons name="chevron-forward" size={18} color="#5a5e63" />
+          </Pressable>
+          {pinChanged && <Text style={styles.saved}>✓ PIN updated</Text>}
+
           <Pressable style={styles.signOut} onPress={confirmSignOut}>
             <Ionicons name="log-out-outline" size={18} color="#f85149" />
             <Text style={styles.signOutText}>Sign Out</Text>
@@ -62,6 +78,15 @@ export default function SettingsScreen() {
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <ChangePinModal
+        visible={showChangePin}
+        onClose={() => setShowChangePin(false)}
+        onChanged={() => {
+          setShowChangePin(false);
+          setPinChanged(true);
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -77,6 +102,17 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     marginBottom: 4,
   },
+  sectionSpacer: { marginTop: 32 },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#1a1b1e',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  rowLabel: { flex: 1, color: '#fff', fontSize: 16 },
   saved: { color: '#3fb950', fontSize: 14, marginTop: 8, textAlign: 'center' },
   signOut: {
     flexDirection: 'row',

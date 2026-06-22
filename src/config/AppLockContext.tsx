@@ -25,6 +25,10 @@ interface AppLockContextValue {
   lastError: string | null;
   setupPIN: (pin: string) => Promise<void>;
   verify: (pin: string) => Promise<boolean>;
+  // Change the PIN from Settings (while already unlocked): confirms the current
+  // PIN, then stores the new one. Returns false if the current PIN is wrong or
+  // the new one is malformed; leaves the stored PIN untouched in that case.
+  changePIN: (current: string, next: string) => Promise<boolean>;
 }
 
 const Ctx = createContext<AppLockContextValue | null>(null);
@@ -78,9 +82,17 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
     return false;
   }, []);
 
+  const changePIN = useCallback(async (current: string, next: string) => {
+    if (!isValidPIN(next)) return false;
+    const stored = await SecureStore.getItemAsync(PIN_ACCOUNT);
+    if (!stored || stored !== current) return false;
+    await SecureStore.setItemAsync(PIN_ACCOUNT, next);
+    return true;
+  }, []);
+
   const value = useMemo<AppLockContextValue>(
-    () => ({ status, obscured, lastError, setupPIN, verify }),
-    [status, obscured, lastError, setupPIN, verify]
+    () => ({ status, obscured, lastError, setupPIN, verify, changePIN }),
+    [status, obscured, lastError, setupPIN, verify, changePIN]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
